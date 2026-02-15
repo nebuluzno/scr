@@ -1,0 +1,114 @@
+# Supervised Cognitive Runtime (SCR) — Project Specification
+
+## 1. Project Overview
+
+SCR is a **supervised multi-agent cognition runtime** built on BEAM (Erlang VM). It demonstrates AI agents as fault-tolerant, persistent, and dynamically spawnable entities that collaborate to complete tasks. Agents operate under a **supervision hierarchy**, communicate via structured messages, and separate memory from execution state.
+
+**Design Goals:**
+- Runnable prototype demonstrating multi-agent coordination
+- Persistent memory via ETS
+- Crash recovery through supervision trees
+- Dynamic spawning of agents
+
+---
+
+## 2. Agent Types
+
+| Agent | Purpose |
+|-------|---------|
+| **PlannerAgent** | Decomposes tasks and coordinates agents |
+| **WorkerAgent** | Performs subtasks |
+| **CriticAgent** | Evaluates results and provides feedback |
+| **MemoryAgent** | Stores persistent memory for tasks and agents |
+
+---
+
+## 3. Architecture
+
+- Each agent is a **GenServer process** with isolated state
+- Shared state only through **MemoryAgent** (ETS)
+- Communication via **structured messages** (`task`, `result`, `critique`, `spawn`)
+- **DynamicSupervisor** manages agent lifecycle
+- **Supervisor** handles crash recovery automatically
+
+### Supervision Tree
+```
+SCR.Application
+  └── SCR.AgentSupervisor (DynamicSupervisor)
+        ├── PlannerAgent
+        ├── WorkerAgent(s)
+        ├── CriticAgent
+        └── MemoryAgent (via Registry)
+```
+
+---
+
+## 4. Message Protocol
+
+| Message Type | Description |
+|--------------|-------------|
+| `:task` | New task assignment |
+| `:result` | Task result |
+| `:critique` | Evaluation feedback |
+| `:spawn` | Spawn new agent |
+
+---
+
+## 5. Demo Scenario
+
+1. User inputs a task: "Research AI agent runtimes and produce structured output."
+2. PlannerAgent decomposes the task into subtasks.
+3. Planner spawns WorkerAgents to gather information.
+4. CriticAgent evaluates output from workers.
+5. MemoryAgent stores all intermediate results.
+6. If a worker crashes, supervisor restarts it and the task continues seamlessly.
+7. System outputs final structured results.
+
+---
+
+## 6. Implementation Steps
+
+1. Create skeleton runtime with supervision tree and agent abstraction
+2. Implement base agent behavior interface
+3. Implement MemoryAgent with ETS persistence
+4. Implement PlannerAgent to decompose tasks and spawn WorkerAgents
+5. Implement WorkerAgents for performing subtasks
+6. Implement CriticAgent to review outputs and provide feedback
+7. Implement message protocol and structured communication
+8. Demonstrate crash recovery by manually terminating agents
+9. Add CLI/demo interface to start and monitor tasks
+10. Document architecture, agent types, and system flow
+
+---
+
+## 7. Deliverables
+
+- [x] Working OTP project with supervision tree
+- [x] Four agent types (Planner, Worker, Critic, Memory)
+- [x] CLI demo script
+- [x] Crash recovery demonstration
+- [x] README with architecture description
+
+---
+
+## 8. Running the Demo
+
+```bash
+# Basic demo
+mix run -e "SCR.CLI.Demo.main([])"
+
+# Crash recovery test
+mix run -e "SCR.CLI.Demo.main([\"--crash-test\"])"
+```
+
+---
+
+## 9. Future Enhancements
+
+- LLM Integration for actual task execution
+- Phoenix Web Interface
+- Distributed Mode across nodes
+- Persistent Storage (PostgreSQL)
+- More Agent Types (Researcher, Writer, Validator)
+- Tool Use capabilities
+- Metrics & Telemetry
