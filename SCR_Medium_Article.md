@@ -1,7 +1,3 @@
----
-title: Building Fault-Tolerant AI Agents with Elixir/OTP: The Supervised Cognitive Runtime
-description: A deep dive into building production-ready multi-agent AI systems using Erlang's proven reliability patterns
----
 
 # Building Fault-Tolerant AI Agents with Elixir/OTP: The Supervised Cognitive Runtime
 
