@@ -13,14 +13,35 @@ defmodule SCR.MixProject do
 
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger, :runtime_tools],
       mod: {SCR, []}
     ]
   end
 
   defp deps do
     [
-      {:elixir_uuid, "~> 1.2"}
+      # Core
+      {:elixir_uuid, "~> 1.2"},
+      {:httpoison, "~> 2.0"},
+      {:jason, "~> 1.4"},
+      {:gettext, "~> 0.24"},
+      
+      # Phoenix
+      {:phoenix, "~> 1.7.0"},
+      {:phoenix_html, "~> 4.0"},
+      {:phoenix_live_reload, "~> 1.5", only: :dev},
+      {:phoenix_live_view, "~> 0.20.0"},
+      {:floki, "~> 0.36", only: :test},
+      {:phoenix_live_dashboard, "~> 0.8.0"},
+      
+      # Server (Cowboy)
+      {:plug_cowboy, "~> 2.6"},
+      
+      # Tailwind (for styling)
+      {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
+      
+      # PubSub for real-time
+      {:phoenix_pubsub, "~> 2.1"}
     ]
   end
 end

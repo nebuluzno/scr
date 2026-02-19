@@ -111,7 +111,7 @@ defmodule SCR.Supervisor do
   def get_agent_status(agent_id) do
     case get_agent_pid(agent_id) do
       {:ok, _pid} ->
-        Agent.get_status(agent_id)
+        {:ok, Agent.get_status(agent_id)}
       
       {:error, :not_found} ->
         {:error, :not_found}

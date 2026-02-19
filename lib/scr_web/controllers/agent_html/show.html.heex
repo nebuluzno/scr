@@ -1,0 +1,20 @@
+<div class="container">
+  <h1>Agent: <%= @agent.agent_id %></h1>
+  
+  <div class="detail-card">
+    <div class="detail-row">
+      <span class="detail-label">ID:</span>
+      <span class="detail-value"><%= @agent.agent_id %></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Type:</span>
+      <span class="detail-value"><%= to_string(@agent.agent_type) %></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Status:</span>
+      <span class={"agent-status status-#{@agent.status}"}><%= to_string(@agent.status) %></span>
+    </div>
+  </div>
+  
+  <a href="/agents" class="btn btn-secondary">← Back to Agents</a>
+</div>

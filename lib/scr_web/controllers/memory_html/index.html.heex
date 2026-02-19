@@ -1,0 +1,262 @@
+<div class="container fade-in">
+  <div class="page-header">
+    <h1>💾 Memory Storage</h1>
+    <p class="subtitle">Persistent ETS-based storage for tasks and agent states</p>
+  </div>
+  
+  <div class="memory-stats">
+    <div class="stat-card">
+      <div class="stat-icon">📋</div>
+      <div class="stat-value"><%= length(@tasks) %></div>
+      <div class="stat-label">Tasks Stored</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🤖</div>
+      <div class="stat-value"><%= length(@agents) %></div>
+      <div class="stat-label">Agent States</div>
+    </div>
+  </div>
+  
+  <div class="memory-grid">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">📋 Tasks</h3>
+        <span class="badge badge-info"><%= length(@tasks) %> items</span>
+      </div>
+      <div class="card-body">
+        <%= if @tasks == [] do %>
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <p>No tasks stored</p>
+          </div>
+        <% else %>
+          <div class="memory-list">
+            <%= for task <- @tasks do %>
+              <div class="memory-item">
+                <div class="memory-header">
+                  <span class="memory-id"><%= task.task_id %></span>
+                  <span class="memory-type badge badge-info"><%= Map.get(task, :type, "task") %></span>
+                </div>
+                <div class="memory-content"><%= String.slice(to_string(task.description), 0, 100) %><%= if String.length(to_string(task.description)) > 100, do: "..." %></div>
+                <%= if Map.get(task, :result) do %>
+                  <div class="memory-result">
+                    <strong>Result:</strong> <%= String.slice(inspect(task.result), 0, 150) %>...
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">🤖 Agent States</h3>
+        <span class="badge badge-info"><%= length(@agents) %> items</span>
+      </div>
+      <div class="card-body">
+        <%= if @agents == [] do %>
+          <div class="empty-state">
+            <div class="empty-state-icon">👻</div>
+            <p>No agent states stored</p>
+          </div>
+        <% else %>
+          <div class="memory-list">
+            <%= for {agent_id, state} <- @agents do %>
+              <div class="memory-item">
+                <div class="memory-header">
+                  <span class="memory-id"><%= agent_id %></span>
+                  <span class="badge badge-info">
+                    <%= Map.get(state, :status, "unknown") %>
+                  </span>
+                </div>
+                <div class="memory-meta">
+                  <span>Type: <%= Map.get(state, :agent_type, "unknown") %></span>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>📖 About Memory Storage</h2>
+    <div class="info-cards">
+      <div class="info-card">
+        <h4>⚡ ETS-Based</h4>
+        <p>In-memory storage using Erlang Term Storage for fast access</p>
+      </div>
+      <div class="info-card">
+        <h4>🔄 Persistent</h4>
+        <p>Survives agent crashes and restarts via supervision</p>
+      </div>
+      <div class="info-card">
+        <h4>🔍 Queryable</h4>
+        <p>All stored data can be retrieved by agents during execution</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="actions-bar">
+    <a href="/" class="btn btn-secondary">← Back to Dashboard</a>
+  </div>
+</div>
+
+<style>
+.page-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+}
+
+.memory-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.card-body {
+  padding: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.memory-item {
+  background: var(--bg-color);
+  border-radius: 10px;
+  padding: 1rem;
+  transition: all 0.2s ease;
+}
+
+.memory-item:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.memory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.memory-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.memory-type {
+  font-size: 0.7rem;
+}
+
+.memory-content {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.memory-result {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.memory-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.info-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.info-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.info-card h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+}
+
+.info-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+}
+
+.empty-state-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: var(--text-secondary);
+}
+
+.actions-bar {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+  .memory-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -2,10 +2,14 @@ defmodule SCR.Agents.WorkerAgent do
   @moduledoc """
   WorkerAgent - Executes subtasks assigned by PlannerAgent.
   
-  Performs research, analysis, and synthesis tasks.
+  Performs research, analysis, and synthesis tasks using LLM.
+  Falls back to mock responses if LLM is unavailable.
+  Supports tool calling for enhanced task execution.
   """
 
   alias SCR.Message
+  alias SCR.LLM.Client
+  alias SCR.Tools.Registry
 
   # Client API
 
@@ -38,8 +42,8 @@ defmodule SCR.Agents.WorkerAgent do
     description = Map.get(task_data, :description, "")
     task_id = Map.get(task_data, :task_id, UUID.uuid4())
     
-    # Process the task
-    result = process_task(task_type, description, task_id)
+    # Process the task using LLM
+    result = process_task_with_llm(task_type, description, task_id)
     
     # Send result back to sender
     result_msg = Message.result(state.agent_id, from, %{
@@ -70,8 +74,8 @@ defmodule SCR.Agents.WorkerAgent do
   end
 
   def handle_heartbeat(state) do
-    internal_state = state.agent_state
-    {:noreply, internal_state}
+    # Note: state here is the internal state, not wrapped in agent_state
+    {:noreply, state}
   end
 
   def terminate(_reason, _state) do
@@ -80,6 +84,197 @@ defmodule SCR.Agents.WorkerAgent do
   end
 
   # Private functions
+
+  defp process_task_with_llm(task_type, description, task_id) do
+    IO.puts("🤖 Using LLM for #{task_type} task: #{description}")
+    
+    # Get available tools
+    tools = get_available_tools()
+    
+    prompt = build_prompt(task_type, description)
+    messages = [%{"role" => "user", "content" => prompt}]
+    
+    if tools != [] do
+      # Use chat_with_tools for LLM calls with tool support
+      case Client.chat_with_tools(messages, tools, temperature: 0.7, max_tokens: 2048) do
+        {:ok, %{content: llm_response}} ->
+          format_result(task_type, description, task_id, llm_response, :llm_with_tools)
+        
+        {:error, reason} ->
+          IO.puts("⚠️ LLM with tools failed, falling back: #{inspect(reason)}")
+          process_task_with_llm_fallback(task_type, description, task_id)
+      end
+    else
+      # No tools available, use regular completion
+      case Client.complete(prompt, temperature: 0.7, max_tokens: 2048) do
+        {:ok, %{content: llm_response}} ->
+          format_result(task_type, description, task_id, llm_response, :llm)
+        
+        {:error, reason} ->
+          IO.puts("⚠️ LLM failed, falling back to mock: #{inspect(reason)}")
+          fallback_process_task(task_type, description, task_id)
+      end
+    end
+  end
+
+  defp get_available_tools do
+    case Registry.list_tools() do
+      [] -> []
+      tool_names ->
+        Enum.map(tool_names, fn name ->
+          case Registry.get_tool(name) do
+            {:ok, module} -> module
+            _ -> nil
+          end
+        end)
+        |> Enum.reject(&is_nil/1)
+    end
+  end
+
+  defp build_prompt(:research, description) do
+    tools_info = get_tools_info()
+    """
+    You are a research assistant. Research the following topic and provide detailed findings.
+    
+    Topic: #{description}
+    
+    #{tools_info}
+    
+    Provide your response as a JSON object with the following structure:
+    {
+      "findings": ["finding 1", "finding 2", ...],
+      "summary": "A brief summary of your research",
+      "sources": ["source 1", "source 2", ...]
+    }
+    """
+  end
+
+  defp build_prompt(:analysis, description) do
+    tools_info = get_tools_info()
+    """
+    You are an analytical consultant. Analyze the following and provide insights.
+    
+    Topic: #{description}
+    
+    #{tools_info}
+    
+    Provide your response as a JSON object with the following structure:
+    {
+      "insights": ["insight 1", "insight 2", ...],
+      "summary": "A brief summary of your analysis",
+      "recommendations": ["recommendation 1", ...]
+    }
+    """
+  end
+
+  defp build_prompt(:synthesis, description) do
+    tools_info = get_tools_info()
+    """
+    You are a technical writer. Synthesize information into a structured output.
+    
+    Topic: #{description}
+    
+    #{tools_info}
+    
+    Provide your response as a JSON object with the following structure:
+    {
+      "output": {
+        "title": "A suitable title",
+        "sections": ["section 1", "section 2", ...]
+      },
+      "summary": "A brief summary"
+    }
+    """
+  end
+
+  defp build_prompt(task_type, description) do
+    tools_info = get_tools_info()
+    """
+    You are a helpful assistant. Complete the following task.
+    
+    Task type: #{task_type}
+    Description: #{description}
+    
+    #{tools_info}
+    
+    Provide a clear and concise response.
+    """
+  end
+
+  defp get_tools_info do
+    tools = get_available_tools()
+    
+    if tools != [] do
+      tool_descriptions = Enum.map_join(tools, "\n", fn tool ->
+        "- #{tool.name()}: #{tool.description()}"
+      end)
+      
+      """
+      Available tools:
+      You can use these tools to enhance your research:
+      #{tool_descriptions}
+      
+      If you need to use a tool, call it and then continue with your response.
+      """
+    else
+      ""
+    end
+  end
+
+  defp format_result(task_type, description, task_id, llm_response, source) do
+    # Try to parse as JSON, fall back to plain text
+    case Jason.decode(llm_response) do
+      {:ok, parsed} ->
+        # If it's already a map, use it directly
+        if is_map(parsed) do
+          # Check if it has the expected structure
+          formatted = Map.merge(%{
+            task_id: task_id,
+            type: task_type,
+            description: description,
+            source: source
+          }, parsed)
+          formatted
+        else
+          # Plain text response
+          %{
+            task_id: task_id,
+            type: task_type,
+            description: description,
+            result: %{summary: to_string(parsed)},
+            source: source
+          }
+        end
+      _ ->
+        # Plain text response
+        %{
+          task_id: task_id,
+          type: task_type,
+          description: description,
+          result: %{summary: llm_response},
+          source: source
+        }
+    end
+  end
+
+  defp process_task_with_llm_fallback(task_type, description, task_id) do
+    # Try without tools
+    prompt = build_prompt(task_type, description)
+    
+    case Client.complete(prompt, temperature: 0.7, max_tokens: 2048) do
+      {:ok, %{content: llm_response}} ->
+        format_result(task_type, description, task_id, llm_response, :llm)
+      
+      {:error, reason} ->
+        IO.puts("⚠️ LLM fallback also failed: #{inspect(reason)}")
+        fallback_process_task(task_type, description, task_id)
+    end
+  end
+
+  defp fallback_process_task(task_type, description, task_id) do
+    # Use the original mock implementation as fallback
+    process_task(task_type, description, task_id)
+  end
 
   defp process_task(:research, description, task_id) do
     IO.puts("🔍 Performing research on: #{description}")
@@ -96,7 +291,8 @@ defmodule SCR.Agents.WorkerAgent do
         "BabyAGI: AI-powered task management system",
         "MetaGPT: Multi-agent collaboration framework"
       ],
-      summary: "Research completed on AI agent runtimes"
+      summary: "Research completed on AI agent runtimes",
+      source: :mock
     }
   end
 
@@ -114,7 +310,8 @@ defmodule SCR.Agents.WorkerAgent do
         "Message passing enables loose coupling",
         "Memory persistence enables long-running tasks"
       ],
-      summary: "Analysis completed"
+      summary: "Analysis completed",
+      source: :mock
     }
   end
 
@@ -135,7 +332,8 @@ defmodule SCR.Agents.WorkerAgent do
           "Future Directions"
         ]
       },
-      summary: "Synthesis completed"
+      summary: "Synthesis completed",
+      source: :mock
     }
   end
 
@@ -148,7 +346,8 @@ defmodule SCR.Agents.WorkerAgent do
       type: task_type,
       description: description,
       output: "Task completed",
-      summary: "Generic task completed"
+      summary: "Generic task completed",
+      source: :mock
     }
   end
 end

@@ -31,3 +31,9 @@ scr-*.tar
 .vscode/
 .idea/
 *.iml
+
+# Environment variables (may contain secrets)
+.env
+
+# macOS
+.DS_Store

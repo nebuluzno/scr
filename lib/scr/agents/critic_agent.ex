@@ -2,11 +2,12 @@ defmodule SCR.Agents.CriticAgent do
   @moduledoc """
   CriticAgent - Evaluates worker outputs and provides feedback.
   
-  Reviews task results and can request revisions if quality
-  doesn't meet standards.
+  Uses LLM to review task results and can request revisions if quality
+  doesn't meet standards. Falls back to rule-based evaluation if LLM unavailable.
   """
 
   alias SCR.Message
+  alias SCR.LLM.Client
 
   @quality_threshold 0.5
 
@@ -68,8 +69,8 @@ defmodule SCR.Agents.CriticAgent do
     
     task_id = Map.get(result_data, :task_id, UUID.uuid4())
     
-    # Evaluate the result
-    evaluation = evaluate_result(result_data, task_id)
+    # Evaluate the result using LLM
+    evaluation = evaluate_with_llm(result_data, task_id)
     
     # Send critique back to planner
     critique_msg = Message.critique(state.agent_id, from, %{
@@ -100,8 +101,8 @@ defmodule SCR.Agents.CriticAgent do
   end
 
   def handle_heartbeat(state) do
-    internal_state = state.agent_state
-    {:noreply, internal_state}
+    # Note: state here is the internal state, not wrapped in agent_state
+    {:noreply, state}
   end
 
   def terminate(_reason, _state) do
@@ -111,6 +112,68 @@ defmodule SCR.Agents.CriticAgent do
 
   # Private functions
 
+  defp evaluate_with_llm(result_data, task_id) do
+    IO.puts("🤖 Using LLM to evaluate result")
+    
+    # Extract result content for evaluation
+    result_content = format_result_for_evaluation(result_data)
+    
+    prompt = """
+    You are a quality assurance critic. Evaluate the following task result.
+    
+    Result:
+    #{result_content}
+    
+    Provide your evaluation as a JSON object with this structure:
+    {
+      "score": 0.0-1.0,
+      "feedback": "Your detailed feedback",
+      "strengths": ["strength 1", "strength 2"],
+      "weaknesses": ["weakness 1", "weakness 2"],
+      "revision_needed": true/false
+    }
+    
+    Be critical but fair. Consider completeness, accuracy, and clarity.
+    """
+    
+    case Client.complete(prompt, temperature: 0.3, max_tokens: 1024) do
+      {:ok, %{content: llm_response}} ->
+        parse_llm_evaluation(llm_response, task_id)
+      
+      {:error, reason} ->
+        IO.puts("⚠️ LLM evaluation failed, using rule-based: #{inspect(reason)}")
+        evaluate_result(result_data, task_id)
+    end
+  end
+
+  defp format_result_for_evaluation(result_data) do
+    result_data
+    |> Map.get(:result, result_data)
+    |> Enum.map(fn {k, v} -> "#{k}: #{inspect(v)}" end)
+    |> Enum.join("\n")
+  end
+
+  defp parse_llm_evaluation(llm_response, task_id) do
+    case Jason.decode(llm_response) do
+      {:ok, parsed} ->
+        %{
+          task_id: task_id,
+          score: Map.get(parsed, "score", 0.5),
+          feedback: Map.get(parsed, "feedback", ""),
+          strengths: Map.get(parsed, "strengths", []),
+          weaknesses: Map.get(parsed, "weaknesses", []),
+          revision_needed: Map.get(parsed, "revision_needed", false),
+          source: :llm
+        }
+      
+      _ ->
+        # Fall back to rule-based if JSON parsing fails
+        evaluate_result(%{}, task_id)
+    end
+  rescue
+    _ -> evaluate_result(%{}, task_id)
+  end
+
   defp evaluate_result(nil, _task_id) do
     %{
       task_id: nil,
@@ -118,7 +181,8 @@ defmodule SCR.Agents.CriticAgent do
       feedback: "No result provided for evaluation",
       strengths: [],
       weaknesses: ["Missing result data"],
-      revision_needed: true
+      revision_needed: true,
+      source: :rule_based
     }
   end
 
@@ -158,7 +222,8 @@ defmodule SCR.Agents.CriticAgent do
       feedback: generate_feedback(score, strengths, weaknesses),
       strengths: strengths,
       weaknesses: weaknesses,
-      revision_needed: score < @quality_threshold
+      revision_needed: score < @quality_threshold,
+      source: :rule_based
     }
   end
 

@@ -1,0 +1,324 @@
+<div class="container fade-in">
+  <div class="page-header">
+    <h1>➕ Submit New Task</h1>
+    <p class="subtitle">Describe a task for the agent system to execute</p>
+  </div>
+  
+  <div class="task-form-container">
+    <form action="/tasks" method="post" class="task-form card">
+      <input type="hidden" name="_csrf_token" value={@csrf_token} />
+      
+      <div class="form-section">
+        <h3>📝 Task Description</h3>
+        <div class="form-group">
+          <label for="task_description">What would you like the agents to do?</label>
+          <textarea 
+            id="task_description" 
+            name="task[description]" 
+            rows="6" 
+            placeholder="Example: Research the current state of AI agent frameworks and provide a summary of the top 5 frameworks with their key features..."
+            required
+          ></textarea>
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>🎯 Task Type</h3>
+        <div class="task-types">
+          <label class="task-type-option">
+            <input type="radio" name="task[type]" value="research" checked>
+            <div class="task-type-card">
+              <span class="type-icon">🔍</span>
+              <span class="type-name">Research</span>
+              <span class="type-desc">Search and gather information</span>
+            </div>
+          </label>
+          <label class="task-type-option">
+            <input type="radio" name="task[type]" value="analysis">
+            <div class="task-type-card">
+              <span class="type-icon">📊</span>
+              <span class="type-name">Analysis</span>
+              <span class="type-desc">Process and analyze data</span>
+            </div>
+          </label>
+          <label class="task-type-option">
+            <input type="radio" name="task[type]" value="computation">
+            <div class="task-type-card">
+              <span class="type-icon">🧮</span>
+              <span class="type-name">Computation</span>
+              <span class="type-desc">Perform calculations</span>
+            </div>
+          </label>
+          <label class="task-type-option">
+            <input type="radio" name="task[type]" value="general">
+            <div class="task-type-card">
+              <span class="type-icon">🤖</span>
+              <span class="type-name">General</span>
+              <span class="type-desc">Any other task</span>
+            </div>
+          </label>
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>⚙️ Options</h3>
+        <div class="options-grid">
+          <div class="form-group">
+            <label for="task_priority">Priority</label>
+            <select id="task_priority" name="task[priority]">
+              <option value="low">Low</option>
+              <option value="normal" selected>Normal</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="task_workers">Max Workers</label>
+            <select id="task_workers" name="task[max_workers]">
+              <option value="1">1 Worker</option>
+              <option value="2" selected>2 Workers</option>
+              <option value="3">3 Workers</option>
+              <option value="5">5 Workers</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-lg">
+          <span>🚀</span> Submit Task
+        </button>
+        <a href="/" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+    
+    <div class="form-tips card">
+      <h3>💡 Tips for Better Results</h3>
+      <ul>
+        <li><strong>Be specific:</strong> Clear descriptions help agents understand your needs</li>
+        <li><strong>Provide context:</strong> Include relevant background information</li>
+        <li><strong>Set expectations:</strong> Mention desired output format</li>
+        <li><strong>Break down complex tasks:</strong> Large tasks are automatically decomposed</li>
+      </ul>
+      
+      <h4>Available Tools</h4>
+      <div class="available-tools">
+        <span class="tool-tag">🧮 Calculator</span>
+        <span class="tool-tag">🌐 HTTP Request</span>
+        <span class="tool-tag">🔍 Search</span>
+        <span class="tool-tag">📁 File Ops</span>
+        <span class="tool-tag">⏰ Time</span>
+        <span class="tool-tag">🌤️ Weather</span>
+        <span class="tool-tag">💻 Code Exec</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.page-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+}
+
+.task-form-container {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 2rem;
+  align-items: start;
+}
+
+.task-form.card {
+  padding: 2rem;
+}
+
+.form-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.form-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 1rem;
+}
+
+.form-section h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-color);
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.form-group textarea {
+  min-height: 150px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.task-types {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.task-type-option {
+  cursor: pointer;
+}
+
+.task-type-option input {
+  display: none;
+}
+
+.task-type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  background: var(--bg-color);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.task-type-option input:checked + .task-type-card {
+  border-color: var(--primary-color);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.task-type-card:hover {
+  border-color: var(--primary-color);
+}
+
+.type-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.type-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.type-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-start;
+  padding-top: 1rem;
+}
+
+.btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1rem;
+}
+
+.form-tips {
+  padding: 1.5rem;
+  position: sticky;
+  top: 100px;
+}
+
+.form-tips h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+}
+
+.form-tips ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.form-tips li {
+  margin-bottom: 0.5rem;
+}
+
+.form-tips h4 {
+  margin: 1.5rem 0 0.75rem 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.available-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tool-tag {
+  background: var(--bg-color);
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 1024px) {
+  .task-form-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-tips {
+    position: static;
+  }
+}
+
+@media (max-width: 768px) {
+  .task-types {
+    grid-template-columns: 1fr;
+  }
+  
+  .options-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+}
+</style>

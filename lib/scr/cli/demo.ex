@@ -50,6 +50,12 @@ defmodule SCR.CLI.Demo do
     IO.puts("\n📋 Running SCR Demo...")
     IO.puts("Task: Research AI agent runtimes and produce structured output\n")
 
+    # Reset metrics for fresh demo
+    SCR.LLM.Metrics.reset()
+    SCR.LLM.Cache.clear()
+    
+    IO.puts("LLM Cache & Metrics initialized")
+    
     # Start MemoryAgent first (other agents will store data here)
     IO.puts("1️⃣ Starting MemoryAgent...")
     {:ok, _} = Supervisor.start_agent("memory_1", :memory, MemoryAgent, %{})
@@ -75,9 +81,13 @@ defmodule SCR.CLI.Demo do
     
     Supervisor.send_to_agent("planner_1", task_msg)
 
-    # Wait for task to complete
-    Process.sleep(5000)
+    # Wait for task to complete - increased time for LLM calls
+    IO.puts("\n⏳ Processing task (this may take a while for LLM calls)...\n")
+    Process.sleep(15000)
 
+    # Show LLM stats
+    show_llm_stats()
+    
     # Show final status
     show_system_status()
   end
@@ -160,6 +170,40 @@ defmodule SCR.CLI.Demo do
     IO.puts("\nMemory storage:")
     IO.puts("  Tasks: #{length(SCR.Agents.MemoryAgent.list_tasks())}")
     IO.puts("  Agent states: #{length(SCR.Agents.MemoryAgent.list_agents())}")
+  end
+
+  defp show_llm_stats do
+    IO.puts("\n" <> String.duplicate("=", 60))
+    IO.puts("🤖 LLM Statistics")
+    IO.puts(String.duplicate("=", 60))
+    
+    # Cache stats
+    cache_stats = SCR.LLM.Cache.stats()
+    IO.puts("\n💾 Cache:")
+    IO.puts("  Enabled: #{cache_stats.enabled}")
+    IO.puts("  Hits: #{cache_stats.hits}")
+    IO.puts("  Misses: #{cache_stats.misses}")
+    IO.puts("  Cached responses: #{cache_stats.size}")
+    
+    # Metrics stats
+    metrics_stats = SCR.LLM.Metrics.stats()
+    IO.puts("\n📈 Token Usage:")
+    IO.puts("  Total calls: #{metrics_stats.total_calls}")
+    IO.puts("  Prompt tokens: #{metrics_stats.total_prompt_tokens}")
+    IO.puts("  Completion tokens: #{metrics_stats.total_completion_tokens}")
+    IO.puts("  Total tokens: #{metrics_stats.total_tokens}")
+    IO.puts("  Total cost: $#{:erlang.float_to_binary(metrics_stats.total_cost, [{:decimals, 6}])} USD")
+    
+    # Model breakdown
+    if map_size(metrics_stats.by_model) > 0 do
+      IO.puts("\n📊 By Model:")
+      Enum.each(metrics_stats.by_model, fn {model, stats} ->
+        IO.puts("  #{model}:")
+        IO.puts("    Calls: #{stats.calls}")
+        IO.puts("    Tokens: #{stats.prompt_tokens + stats.completion_tokens}")
+        IO.puts("    Cost: $#{:erlang.float_to_binary(stats.cost, [{:decimals, 6}])} USD")
+      end)
+    end
   end
 
   defp help_text do

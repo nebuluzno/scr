@@ -1,0 +1,230 @@
+<div class="container fade-in">
+  <div class="page-header">
+    <h1>🔧 Tools</h1>
+    <p class="subtitle">Available tools for agent task execution</p>
+  </div>
+  
+  <div class="tools-grid">
+    <%= if @tools == [] do %>
+      <div class="empty-state card">
+        <div class="empty-state-icon">📭</div>
+        <p>No tools registered</p>
+      </div>
+    <% else %>
+      <%= for tool <- @tools do %>
+        <div class="tool-card card">
+          <div class="tool-header">
+            <div class="tool-icon">
+              <%= case tool.name do
+                "calculator" -> "🧮"
+                "http_request" -> "🌐"
+                "search" -> "🔍"
+                "file_operations" -> "📁"
+                "time" -> "⏰"
+                "weather" -> "🌤️"
+                "code_execution" -> "💻"
+                _ -> "🔧"
+              end %>
+            </div>
+            <div class="tool-title">
+              <h3><%= tool.name |> String.replace("_", " ") |> String.capitalize() %></h3>
+              <span class="tool-module"><%= inspect(tool.module) %></span>
+            </div>
+          </div>
+          
+          <p class="tool-description"><%= tool.description %></p>
+          
+          <%= if tool.schema && map_size(tool.schema) > 0 do %>
+            <div class="tool-schema">
+              <h4>Parameters</h4>
+              <pre><%= Jason.encode!(tool.schema, pretty: true) %></pre>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+  
+  <div class="section">
+    <h2>📖 Tool System</h2>
+    <p class="section-description">
+      Tools are capabilities that agents can use to interact with external systems, 
+      perform calculations, and execute actions. The LLM automatically decides when 
+      to use each tool based on the task requirements.
+    </p>
+    
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔌</div>
+        <h3>Pluggable</h3>
+        <p>Tools implement a simple behaviour contract for easy extension</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>LLM-Ready</h3>
+        <p>Tools are exposed in OpenAI function calling format</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Safe</h3>
+        <p>Tools run in isolation with proper error handling</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="actions-bar">
+    <a href="/" class="btn btn-secondary">← Back to Dashboard</a>
+  </div>
+</div>
+
+<style>
+.page-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+}
+
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.tool-card {
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.tool-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary-color);
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.2);
+}
+
+.tool-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.tool-icon {
+  font-size: 2rem;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+  border-radius: 10px;
+}
+
+.tool-title h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.tool-module {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.tool-description {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.tool-schema {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.tool-schema h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.tool-schema pre {
+  margin: 0;
+  font-size: 0.8rem;
+  overflow-x: auto;
+}
+
+.section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.section-description {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.feature-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.feature-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.feature-card h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+}
+
+.feature-card p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.actions-bar {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  grid-column: 1 / -1;
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+  .tools-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

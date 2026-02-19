@@ -1,0 +1,22 @@
+<div class="container">
+  <h1>📋 Tasks</h1>
+  
+  <div class="actions" style="margin-bottom: 20px;">
+    <a href="/tasks/new" class="btn btn-primary">➕ New Task</a>
+  </div>
+  
+  <div class="tasks-list">
+    <%= if @tasks == [] do %>
+      <p class="empty-state">No tasks found.</p>
+    <% else %>
+      <%= for task <- @tasks do %>
+        <div class="task-item">
+          <div class="task-id">ID: <%= task.task_id %></div>
+          <div class="task-description"><%= task.description %></div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+  
+  <a href="/" class="btn btn-secondary">← Back to Dashboard</a>
+</div>
