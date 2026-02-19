@@ -1,0 +1,294 @@
+<div class="container fade-in">
+  <div class="dashboard">
+    <div class="dashboard-header">
+      <h1>Supervised Cognitive Runtime</h1>
+      <p class="subtitle">Multi-agent cognition runtime on BEAM</p>
+    </div>
+    
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-value"><%= @agent_count %></div>
+        <div class="stat-label">Active Agents</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">💾</div>
+        <div class="stat-value"><%= @cache_stats.size %></div>
+        <div class="stat-label">Cached Responses</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-value"><%= @metrics_stats.total_calls %></div>
+        <div class="stat-label">LLM Calls</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-value">$<%= :erlang.float_to_binary(@metrics_stats.total_cost, [{:decimals, 4}]) %></div>
+        <div class="stat-label">Total Cost</div>
+      </div>
+    </div>
+    
+    <div class="dashboard-grid">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">🤖 Active Agents</h3>
+          <a href="/agents" class="btn btn-secondary btn-sm">View All</a>
+        </div>
+        <div class="card-body">
+          <%= if @agents == [] do %>
+            <div class="empty-state">
+              <div class="empty-state-icon">👻</div>
+              <p>No agents running</p>
+              <a href="/tasks/new" class="btn btn-primary btn-sm">Start a Task</a>
+            </div>
+          <% else %>
+            <div class="agent-list">
+              <%= for agent <- @agents do %>
+                <div class="agent-item">
+                  <div class="agent-info">
+                    <span class="agent-id"><%= agent.agent_id %></span>
+                    <span class="agent-type badge badge-info"><%= to_string(Map.get(agent, :agent_type, "unknown")) %></span>
+                  </div>
+                  <span class={"badge #{if agent.status == :running, do: "badge-success", else: "badge-warning"}"}>
+                    <%= if agent.status == :running, do: "● Running", else: "○ " <> to_string(agent.status) %>
+                  </span>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">🔧 Quick Tools</h3>
+          <a href="/tools" class="btn btn-secondary btn-sm">View All</a>
+        </div>
+        <div class="card-body">
+          <div class="quick-tools">
+            <a href="/tools" class="quick-tool-item">
+              <span class="tool-icon">🧮</span>
+              <span>Calculator</span>
+            </a>
+            <a href="/tools" class="quick-tool-item">
+              <span class="tool-icon">🌤️</span>
+              <span>Weather</span>
+            </a>
+            <a href="/tools" class="quick-tool-item">
+              <span class="tool-icon">🔍</span>
+              <span>Search</span>
+            </a>
+            <a href="/tools" class="quick-tool-item">
+              <span class="tool-icon">⏰</span>
+              <span>Time</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="actions-bar">
+      <a href="/tasks/new" class="btn btn-primary">
+        <span>➕</span> Submit New Task
+      </a>
+      <a href="/metrics" class="btn btn-secondary">
+        <span>📈</span> View Metrics
+      </a>
+      <a href="/memory" class="btn btn-secondary">
+        <span>💾</span> Memory
+      </a>
+    </div>
+  </div>
+</div>
+
+<style>
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.5rem;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary-color);
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.2);
+}
+
+.stat-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.card-title {
+  font-weight: 600;
+  margin: 0;
+}
+
+.card-body {
+  padding: 1rem 1.5rem;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+.agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.agent-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--bg-color);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.agent-item:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.agent-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.agent-id {
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.quick-tools {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.quick-tool-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-color);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-color);
+  transition: all 0.2s ease;
+}
+
+.quick-tool-item:hover {
+  background: rgba(99, 102, 241, 0.15);
+  transform: translateX(4px);
+}
+
+.tool-icon {
+  font-size: 1.25rem;
+}
+
+.actions-bar {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.empty-state-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+  .dashboard-header h1 {
+    font-size: 1.75rem;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .quick-tools {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -5,7 +5,36 @@ defmodule SCR do
   A fault-tolerant, persistent multi-agent system built on OTP principles.
   """
 
+  use Application
+
+  @default_tools [
+    SCR.Tools.Calculator,
+    SCR.Tools.HTTPRequest,
+    SCR.Tools.Search,
+    SCR.Tools.FileOperations,
+    SCR.Tools.Time,
+    SCR.Tools.Weather,
+    SCR.Tools.CodeExecution
+  ]
+
   def start(_type, _args) do
-    SCR.Supervisor.start_link([])
+    IO.puts("\n🔧 Starting SCR Application...")
+    
+    # Create supervisor tree
+    children = [
+      # Start PubSub for real-time updates
+      {Phoenix.PubSub, name: SCR.PubSub},
+      # Start LLM Cache and Metrics
+      {SCR.LLM.Cache, [enabled: true]},
+      {SCR.LLM.Metrics, []},
+      # Start Tools Registry with default tools
+      {SCR.Tools.Registry, default_tools: @default_tools},
+      # Start Phoenix endpoint
+      SCRWeb.Endpoint,
+      # Start the main SCR supervisor
+      {SCR.Supervisor, []}
+    ]
+    
+    Supervisor.start_link(children, strategy: :one_for_one, name: SCR.Supervisor.Tree)
   end
 end

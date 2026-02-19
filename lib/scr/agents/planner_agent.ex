@@ -3,14 +3,33 @@ defmodule SCR.Agents.PlannerAgent do
   PlannerAgent - Decomposes tasks and coordinates agent workflow.
   
   Orchestrates the task by:
-  1. Breaking down complex tasks into subtasks
-  2. Spawning WorkerAgents to execute subtasks
+  1. Breaking down complex tasks into subtasks using LLM
+  2. Spawning appropriate agent types to execute subtasks
   3. Collecting results and sending to CriticAgent
   4. Handling failures and recovery
+  
+  Available Agent Types:
+  - WorkerAgent: General task execution
+  - ResearcherAgent: Web research and information gathering
+  - WriterAgent: Content generation and summarization
+  - ValidatorAgent: Quality assurance and verification
+  - CriticAgent: Evaluation and feedback
   """
 
   alias SCR.Message
   alias SCR.Agents.WorkerAgent
+  alias SCR.Agents.ResearcherAgent
+  alias SCR.Agents.WriterAgent
+  alias SCR.Agents.ValidatorAgent
+  alias SCR.LLM.Client
+
+  # Agent type mappings
+  @agent_modules %{
+    worker: WorkerAgent,
+    researcher: ResearcherAgent,
+    writer: WriterAgent,
+    validator: ValidatorAgent
+  }
 
   # Client API
 
@@ -43,8 +62,8 @@ defmodule SCR.Agents.PlannerAgent do
     # Get internal state from context
     internal_state = state.agent_state
     
-    # Decompose task into subtasks
-    subtasks = decompose_task(task_data)
+    # Decompose task into subtasks using LLM
+    subtasks = decompose_task_with_llm(task_data)
     
     # Store in memory
     store_in_memory(:task, %{task_data: task_data, subtasks: subtasks})
@@ -127,8 +146,8 @@ defmodule SCR.Agents.PlannerAgent do
   end
 
   def handle_heartbeat(state) do
-    internal_state = state.agent_state
-    {:noreply, internal_state}
+    # Note: state here is the internal state, not wrapped in agent_state
+    {:noreply, state}
   end
 
   def terminate(_reason, _state) do
@@ -138,60 +157,141 @@ defmodule SCR.Agents.PlannerAgent do
 
   # Private functions
 
+  defp decompose_task_with_llm(task_data) do
+    description = Map.get(task_data, :description, "")
+    
+    IO.puts("🤖 Using LLM to decompose task: #{description}")
+    
+    prompt = """
+    You are a task planning assistant. Break down the following complex task into 3-5 subtasks.
+    
+    Main Task: #{description}
+    
+    Available Agent Types:
+    - researcher: Best for web research, information gathering, fact-finding
+    - writer: Best for content generation, summarization, formatting
+    - validator: Best for quality assurance, fact-checking, verification
+    - worker: General purpose for analysis, synthesis, other tasks
+    
+    Provide your response as a JSON array of subtask objects with this structure:
+    [
+      {
+        "task_id": "unique-id",
+        "agent_type": "researcher|writer|validator|worker",
+        "description": "specific subtask description",
+        "priority": 1-5
+      },
+      ...
+    ]
+    
+    Choose the most appropriate agent type for each subtask.
+    """
+    
+    case Client.complete(prompt, temperature: 0.5, max_tokens: 1024) do
+      {:ok, %{content: llm_response}} ->
+        parse_llm_subtasks(llm_response)
+      
+      {:error, reason} ->
+        IO.puts("⚠️ LLM decomposition failed, using rule-based: #{inspect(reason)}")
+        fallback_decompose_task(description)
+    end
+  end
+
+  defp parse_llm_subtasks(llm_response) do
+    case Jason.decode(llm_response) do
+      {:ok, subtasks} when is_list(subtasks) ->
+        Enum.map(subtasks, fn subtask ->
+          agent_type = Map.get(subtask, "agent_type", "worker") |> String.to_atom()
+          Map.merge(%{
+            task_id: UUID.uuid4(),
+            agent_type: agent_type,
+            agent_id: "#{agent_type}_#{:rand.uniform(100)}",
+            priority: Map.get(subtask, "priority", 3)
+          }, subtask)
+        end)
+      
+      _ ->
+        # If JSON parsing fails, try to extract subtasks manually
+        IO.puts("⚠️ Could not parse LLM response as JSON, using fallback")
+        fallback_decompose_task("")
+    end
+  rescue
+    _ -> fallback_decompose_task("")
+  end
+
+  defp fallback_decompose_task(description) do
+    decompose_task(%{description: description})
+  end
+
   defp decompose_task(task_data) do
     description = Map.get(task_data, :description, "")
     
-    # Create subtasks based on the main task
+    # Create subtasks using specialized agents
     [
       %{
         task_id: UUID.uuid4(),
-        type: :research,
-        description: "Research AI agent runtimes: #{description}",
-        worker_id: "worker_1"
+        agent_type: :researcher,
+        agent_id: "researcher_1",
+        description: "Research and gather information about: #{description}",
+        priority: 1
       },
       %{
         task_id: UUID.uuid4(),
-        type: :analysis,
+        agent_type: :worker,
+        agent_id: "worker_1",
         description: "Analyze findings from research",
-        worker_id: "worker_2"
+        priority: 2
       },
       %{
         task_id: UUID.uuid4(),
-        type: :synthesis,
+        agent_type: :writer,
+        agent_id: "writer_1",
         description: "Synthesize research into structured output",
-        worker_id: "worker_3"
+        priority: 3
+      },
+      %{
+        task_id: UUID.uuid4(),
+        agent_type: :validator,
+        agent_id: "validator_1",
+        description: "Validate and verify the final output",
+        priority: 4
       }
     ]
   end
 
   defp execute_subtasks(state) do
-    # Spawn workers and assign tasks
-    Enum.each(state.subtasks, fn subtask ->
-      worker_id = "worker_#{:rand.uniform(100)}"
+    # Sort subtasks by priority
+    sorted_subtasks = Enum.sort_by(state.subtasks, & &1.priority)
+    
+    # Spawn appropriate agents and assign tasks
+    Enum.each(sorted_subtasks, fn subtask ->
+      agent_type = Map.get(subtask, :agent_type, :worker)
+      agent_id = Map.get(subtask, :agent_id, "#{agent_type}_#{:rand.uniform(100)}")
+      agent_module = Map.get(@agent_modules, agent_type, WorkerAgent)
       
-      # Start worker agent
+      # Start agent
       {:ok, _pid} = SCR.Supervisor.start_agent(
-        worker_id,
-        :worker,
-        WorkerAgent,
-        %{}
+        agent_id,
+        agent_type,
+        agent_module,
+        %{agent_id: agent_id}
       )
       
-      Process.sleep(100) # Give worker time to start
+      Process.sleep(100) # Give agent time to start
       
-      # Send task to worker
-      task_msg = Message.task(state.agent_id, worker_id, %{
+      # Send task to agent
+      task_msg = Message.task(state.agent_id, agent_id, %{
         task_id: subtask.task_id,
-        type: subtask.type,
+        type: agent_type,
         description: subtask.description
       })
       
-      SCR.Supervisor.send_to_agent(worker_id, task_msg)
+      SCR.Supervisor.send_to_agent(agent_id, task_msg)
       
-      IO.puts("🧠 Assigned #{subtask.type} task to #{worker_id}")
+      IO.puts("🧠 Assigned #{agent_type} task to #{agent_id}")
     end)
     
-    %{state | worker_pool: Enum.map(state.subtasks, & &1.worker_id)}
+    %{state | worker_pool: Enum.map(sorted_subtasks, & &1.agent_id)}
   end
 
   defp store_in_memory(type, data) do

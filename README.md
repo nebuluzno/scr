@@ -11,17 +11,21 @@ SCR is a foundation for research-level work in scalable, long-lived AI agent sys
 - **Dynamic agent spawning** for parallel task execution
 - **Supervision hierarchy** for monitoring and automatic restart capabilities
 - **Structured message passing** between agents
+- **LLM Integration** for intelligent task execution and evaluation
 
 ## 🏗️ Architecture
 
 ### Agent Types
 
-| Agent | Description |
-|-------|-------------|
-| **PlannerAgent** | Decomposes complex tasks into subtasks and coordinates agent workflow |
-| **WorkerAgent** | Executes subtasks (research, analysis, synthesis) in parallel |
-| **CriticAgent** | Evaluates worker outputs and provides quality feedback |
-| **MemoryAgent** | Persistent storage for tasks, results, and agent states using ETS |
+| Agent | Icon | Description |
+|-------|------|-------------|
+| **PlannerAgent** | 🧠 | Decomposes complex tasks into subtasks and coordinates agent workflow |
+| **WorkerAgent** | ⚙️ | Executes subtasks (research, analysis, synthesis) in parallel |
+| **CriticAgent** | 🔍 | Evaluates worker outputs and provides quality feedback |
+| **MemoryAgent** | 💾 | Persistent storage for tasks, results, and agent states using ETS |
+| **ResearcherAgent** | 🔬 | Specialized for web research and information gathering |
+| **WriterAgent** | ✍️ | Content generation, summarization, and formatting |
+| **ValidatorAgent** | ✅ | Quality assurance, fact-checking, and verification |
 
 ### Message Protocol
 
@@ -44,10 +48,11 @@ SCR.Supervisor (DynamicSupervisor)
 ├── MemoryAgent (permanent)
 ├── CriticAgent (permanent)  
 ├── PlannerAgent (permanent)
-└── WorkerAgent (dynamic, spawned as needed)
-    ├── WorkerAgent
-    ├── WorkerAgent
-    └── WorkerAgent
+└── Dynamic Agents (spawned as needed)
+    ├── WorkerAgent(s)
+    ├── ResearcherAgent(s)
+    ├── WriterAgent(s)
+    └── ValidatorAgent(s)
 ```
 
 ## 🚀 Quick Start
@@ -71,6 +76,14 @@ mix compile
 ```
 
 ### Running the Demo
+
+#### Command Comparison
+
+| Command | Description | Use Case |
+|---------|-------------|----------|
+| `mix run -e "SCR.CLI.Demo.main([])"` | Runs CLI demo script - executes a task sequence and exits | Quick testing, CI/CD |
+| `mix run -e "SCR.CLI.Demo.main([\"--crash-test\"])"` | Runs crash recovery test | Testing supervisor |
+| `mix phx.server` | Starts Phoenix web server (continuous) | Web interface |
 
 #### Basic Demo - Multi-Agent Task Execution
 
@@ -107,13 +120,47 @@ lib/
 │   ├── message.ex              # Structured message protocol
 │   ├── agent.ex                # Base Agent behavior (GenServer)
 │   ├── supervisor.ex           # DynamicSupervisor for agent lifecycle
+│   ├── llm/                    # LLM Integration Layer
+│   │   ├── behaviour.ex       # Adapter contract (Behaviour)
+│   │   ├── ollama.ex          # Ollama adapter (local models)
+│   │   ├── client.ex          # Unified LLM client
+│   │   ├── cache.ex           # Response caching
+│   │   └── metrics.ex         # Usage metrics & cost tracking
+│   ├── tools/                  # Tool Use System
+│   │   ├── behaviour.ex       # Tool behaviour contract
+│   │   ├── registry.ex        # Tool registry
+│   │   ├── calculator.ex      # Calculator tool
+│   │   ├── http_request.ex    # HTTP requests tool
+│   │   ├── search.ex          # Web search tool
+│   │   ├── file_operations.ex # File operations tool
+│   │   ├── time.ex            # Time/date tool
+│   │   ├── weather.ex         # Weather tool
+│   │   └── code_execution.ex  # Code execution tool
 │   ├── agents/
-│   │   ├── memory_agent.ex    # Persistent storage (ETS)
-│   │   ├── planner_agent.ex   # Task decomposition
-│   │   ├── worker_agent.ex    # Subtask execution
-│   │   └── critic_agent.ex    # Result evaluation
+│   │   ├── memory_agent.ex    # Persistent storage (ETS) + summarization
+│   │   ├── planner_agent.ex   # Task decomposition (LLM-powered)
+│   │   ├── worker_agent.ex    # Subtask execution (LLM-powered)
+│   │   ├── critic_agent.ex    # Result evaluation (LLM-powered)
+│   │   ├── researcher_agent.ex # Web research & information gathering
+│   │   ├── writer_agent.ex    # Content generation & summarization
+│   │   └── validator_agent.ex # Quality assurance & verification
 │   └── cli/
 │       └── demo.ex             # CLI demo interface
+├── scr_web/                    # Phoenix Web Interface
+│   ├── endpoint.ex            # Phoenix endpoint
+│   ├── router.ex              # Web router
+│   ├── live/                  # LiveView components
+│   │   └── dashboard_live.ex  # Real-time dashboard
+│   └── controllers/           # HTTP controllers
+│       ├── agent_controller.ex
+│       ├── task_controller.ex
+│       ├── metrics_controller.ex
+│       └── page_controller.ex
+├── config/                     # Configuration files
+│   ├── config.exs             # Main config
+│   ├── dev.exs               # Development settings
+│   ├── test.exs              # Test settings
+│   └── prod.exs              # Production settings
 ├── mix.exs                     # Project configuration
 └── README.md                   # This file
 ```
@@ -225,6 +272,190 @@ Active agents: 4
 ✅ Demo completed!
 ```
 
+## 🤖 LLM Integration
+
+SCR now supports LLM-powered agents! Connect to local or cloud LLM providers for intelligent task execution.
+
+### Supported Providers
+
+| Provider | Type | Description |
+|----------|------|-------------|
+| **Ollama** | Local | Run models locally (llama2, mistral, codellama, etc.) |
+| **OpenAI** | Cloud | GPT-4, GPT-3.5 (coming soon) |
+| **Anthropic** | Cloud | Claude (coming soon) |
+
+### Quick Setup (Ollama)
+
+1. **Install Ollama**: https://ollama.ai
+
+2. **Start Ollama server**:
+   ```bash
+   ollama serve
+   ```
+
+3. **Pull a model** (in another terminal):
+   ```bash
+   ollama pull llama2
+   ```
+
+4. **Run the LLM-powered demo**:
+   ```bash
+   mix run -e "SCR.CLI.Demo.main([])"
+   ```
+
+### Configuration
+
+Configure LLM settings in `config/dev.exs` or via environment variables:
+
+```elixir
+config :scr, :llm,
+  provider: :ollama,
+  base_url: System.get_env("LLM_BASE_URL") || "http://localhost:11434",
+  default_model: System.get_env("LLM_MODEL") || "llama2",
+  timeout: 120_000
+```
+
+Or using environment variables:
+```bash
+export LLM_BASE_URL=http://localhost:11434
+export LLM_MODEL=llama2
+```
+
+### LLM-Powered Agents
+
+| Agent | LLM Capability |
+|-------|---------------|
+| **WorkerAgent** | Executes tasks with real LLM responses |
+| **PlannerAgent** | Intelligent task decomposition |
+| **CriticAgent** | Quality evaluation with natural language feedback |
+| **MemoryAgent** | Memory summarization & retrieval |
+
+### Fallback Mode
+
+If LLM is unavailable, agents automatically fall back to mock data. This allows development without running an LLM server.
+
+## 🔧 Tool Use
+
+Agents can use tools to interact with external systems. The tool system provides a standardized way for LLM-powered agents to execute actions.
+
+### Available Tools
+
+| Tool | Icon | Description |
+|------|------|-------------|
+| **Calculator** | 🧮 | Mathematical calculations |
+| **HTTP Request** | 🌐 | Make HTTP requests to external APIs |
+| **Search** | 🔍 | Web search capabilities |
+| **File Operations** | 📁 | Read, write, and manage files |
+| **Time** | ⏰ | Get current time and date information |
+| **Weather** | 🌤️ | Get weather information |
+| **Code Execution** | 💻 | Execute code snippets safely |
+
+### Using Tools
+
+Tools are automatically available to LLM-powered agents through function calling:
+
+```elixir
+# Tools are invoked by the LLM during task execution
+# Example: WorkerAgent with tools
+alias SCR.LLM.Client
+
+tools = SCR.Tools.Registry.list_tools()
+|> Enum.map(fn name ->
+  {:ok, module} = SCR.Tools.Registry.get_tool(name)
+  apply(module, :to_openai_format, [])
+end)
+
+# LLM decides when to call tools
+Client.chat_with_tools(messages, tools, model: "llama2")
+```
+
+### Adding Custom Tools
+
+Create a new tool by implementing the `SCR.Tools.Behaviour`:
+
+```elixir
+defmodule SCR.Tools.MyTool do
+  @behaviour SCR.Tools.Behaviour
+  
+  def name, do: "my_tool"
+  def description, do: "Description of what the tool does"
+  
+  def parameters do
+    %{
+      type: "object",
+      properties: %{
+        input: %{type: "string", description: "Input parameter"}
+      },
+      required: ["input"]
+    }
+  end
+  
+  def execute(%{"input" => input}) do
+    # Tool implementation
+    {:ok, "Result: #{input}"}
+  end
+  
+  def to_openai_format do
+    %{
+      type: "function",
+      function: %{
+        name: name(),
+        description: description(),
+        parameters: parameters()
+      }
+    }
+  end
+end
+```
+
+## 🌐 Phoenix Web Interface
+
+SCR includes a Phoenix-based web interface with real-time updates via LiveView.
+
+### Starting the Web Server
+
+```bash
+mix phx.server
+```
+
+Then open http://localhost:4000 in your browser.
+
+### Features
+
+- **Real-time Dashboard** - Live agent status updates via PubSub
+- **Agent Management** - View and manage running agents
+- **Task Submission** - Submit new tasks through the web UI
+- **Metrics View** - Monitor LLM usage and costs
+- **Memory Browser** - Explore stored tasks and results
+- **Tool Testing** - Test tools directly from the web interface
+
+### LiveView Dashboard
+
+The dashboard shows:
+- Active agent count and status
+- LLM call statistics
+- Cache hit rates
+- Recent tasks
+- Quick access to tools
+
+Create a new adapter implementing `SCR.LLM.Behaviour`:
+
+```elixir
+defmodule SCR.LLM.OpenAI do
+  @behaviour SCR.LLM.Behaviour
+  
+  def complete(prompt, options) do
+    # Implement OpenAI API call
+  end
+  
+  def chat(messages, options) do
+    # Implement chat completion
+  end
+  
+  # ... implement other callbacks
+end
+```
+
 ## 🧪 Running Tests
 
 ```bash
@@ -234,6 +465,8 @@ mix test
 ## 📦 Dependencies
 
 - **elixir_uuid** (~> 1.2) - UUID generation for messages and tasks
+- **httpoison** (~> 2.0) - HTTP client for LLM API calls
+- **jason** (~> 1.4) - JSON parsing for LLM responses
 
 ## 📄 License
 
@@ -251,15 +484,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📋 TODO - Future Enhancements
 
-- [ ] **LLM Integration** - Connect WorkerAgents to GPT-4, Claude, or local models (Ollama, llama.cpp)
-- [ ] **Phoenix Web Interface** - Add a web dashboard for monitoring agent activity and system health
+- [x] **LLM Integration** - Connect WorkerAgents to GPT-4, Claude, or local models (Ollama, llama.cpp)
+- [x] **Phoenix Web Interface** - Web dashboard with LiveView for real-time monitoring
+- [x] **Tool Use** - 7 tools implemented (Calculator, HTTP, Search, File, Time, Weather, Code)
+- [x] **More Agent Types** - ResearcherAgent, WriterAgent, ValidatorAgent
 - [ ] **Distributed Mode** - Run agents across multiple nodes for horizontal scaling
 - [ ] **Persistent Storage** - Add DETS or PostgreSQL adapter for durability beyond memory
-- [ ] **More Agent Types** - Add specialized agents:
-  - RetrieverAgent (RAG/vector search)
-  - CoderAgent (code generation)
-  - BrowserAgent (web automation)
-- [ ] **Tool Use** - Give agents ability to call external APIs and tools
 - [ ] **Agent Communication** - Add agent-to-agent direct messaging
 - [ ] **Metrics & Telemetry** - Add OpenTelemetry integration for observability
 - [ ] **Tests** - Add comprehensive test suite with ExUnit

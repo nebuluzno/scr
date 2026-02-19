@@ -88,13 +88,20 @@ SCR.Application
 - [x] CLI demo script
 - [x] Crash recovery demonstration
 - [x] README with architecture description
+- [x] LLM Integration with Ollama
+- [x] Phoenix Web Interface
+- [x] Tool Use Capabilities (Calculator, HTTP, Search, FileOperations)
+- [x] LLM Integration (Ollama adapter)
 
 ---
 
 ## 8. Running the Demo
 
 ```bash
-# Basic demo
+# Install and start Ollama (for LLM)
+brew services start ollama
+
+# Basic demo (with LLM fallback)
 mix run -e "SCR.CLI.Demo.main([])"
 
 # Crash recovery test
@@ -105,10 +112,13 @@ mix run -e "SCR.CLI.Demo.main([\"--crash-test\"])"
 
 ## 9. Future Enhancements
 
-- LLM Integration for actual task execution
-- Phoenix Web Interface
-- Distributed Mode across nodes
-- Persistent Storage (PostgreSQL)
-- More Agent Types (Researcher, Writer, Validator)
-- Tool Use capabilities
-- Metrics & Telemetry
+- [x] LLM Integration for actual task execution
+- [x] LLM Caching (ETS-based response cache)
+- [x] LLM Streaming (real-time output)
+- [x] Token Counting & Cost Tracking
+- [x] Phoenix Web Interface
+- [ ] Distributed Mode across nodes
+- [ ] Persistent Storage (PostgreSQL)
+- [x] More Agent Types (Researcher, Writer, Validator)
+- [x] Tool Use capabilities
+- [ ] Metrics & Telemetry

@@ -1,0 +1,227 @@
+# SCR LLM Integration - Technical Documentation
+
+## Overview
+
+The SCR (Supervised Cognitive Runtime) now supports LLM (Large Language Model) integration for intelligent task execution. This document describes the architecture and implementation.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      SCR Agents                             │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │
+│  │ Planner  │ │ Worker   │ │ Critic  │ │ Memory  │     │
+│  │  Agent  │ │  Agent   │ │  Agent  │ │  Agent  │     │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘     │
+│       │            │            │            │            │
+│       └────────────┴────────────┴────────────┘            │
+│                          │                                 │
+│                          ▼                                 │
+│              ┌─────────────────────┐                       │
+│              │   SCR.LLM.Client   │                       │
+│              │  (Unified API)     │                       │
+│              └──────────┬──────────┘                       │
+└─────────────────────────┼─────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   LLM Adapter Layer                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │ SCR.LLM.    │  │ SCR.LLM.    │  │ SCR.LLM.    │   │
+│  │ Ollama      │  │ OpenAI     │  │ Anthropic   │   │
+│  │ (local)    │  │ (cloud)    │  │ (cloud)     │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
+│                                                          │
+│  SCR.LLM.Behaviour - Adapter Contract                    │
+└──────────────────────────────────────────────────────────┘
+```
+
+## LLM Adapters
+
+### 1. Ollama Adapter (Default for Development)
+
+**File:** `lib/scr/llm/ollama.ex`
+
+Features:
+- Local LLM execution (no API costs)
+- Supports multiple models (llama2, mistral, codellama, etc.)
+- REST API integration
+
+Configuration:
+```elixir
+config :scr, :llm,
+  provider: :ollama,
+  base_url: "http://localhost:11434",
+  default_model: "llama2",
+  timeout: 120_000
+```
+
+### 2. Behaviour Contract
+
+**File:** `lib/scr/llm/behaviour.ex`
+
+All LLM adapters must implement:
+
+```elixir
+@callback complete(prompt :: String.t(), options :: keyword()) :: {:ok, map()} | {:error, term()}
+@callback chat(messages :: [map()], options :: keyword()) :: {:ok, map()} | {:error, term()}
+@callback embed(text :: String.t(), options :: keyword()) :: {:ok, map()} | {:error, term()}
+@callback ping() :: {:ok, map()} | {:error, term()}
+@callback list_models() :: {:ok, [map()]} | {:error, term()}
+```
+
+### 3. Unified Client
+
+**File:** `lib/scr/llm/client.ex`
+
+Provides a single entry point for all LLM operations:
+
+```elixir
+# Completion
+SCR.LLM.Client.complete("Explain quantum computing")
+
+# Chat
+SCR.LLM.Client.chat([
+  %{role: "system", content: "You are helpful"},
+  %{role: "user", content: "What is Elixir?"}
+])
+
+# Check availability
+SCR.LLM.Client.ping()
+```
+
+## Agent LLM Integration
+
+### WorkerAgent
+
+Uses LLM for actual task execution:
+
+- **Research tasks**: LLM generates research findings
+- **Analysis tasks**: LLM provides insights and analysis
+- **Synthesis tasks**: LLM produces structured output
+
+Example prompt:
+```
+You are a research assistant. Research the following topic and provide detailed findings.
+
+Topic: {description}
+
+Provide your response as a JSON object with:
+{"findings": [...], "summary": "...", "sources": [...]}
+```
+
+### PlannerAgent
+
+Uses LLM for intelligent task decomposition:
+
+- Analyzes complex tasks
+- Breaks them into subtasks
+- Assigns appropriate task types
+
+### CriticAgent
+
+Uses LLM for quality evaluation:
+
+- Evaluates worker outputs
+- Generates natural language feedback
+- Assesses quality scores
+
+### MemoryAgent
+
+Uses LLM for memory operations:
+
+- **Summarization**: Condenses stored memories
+- **Retrieval**: Finds relevant memories based on queries
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# Ollama (local)
+export LLM_BASE_URL=http://localhost:11434
+export LLM_MODEL=llama2
+
+# Or OpenAI (cloud)
+export LLM_BASE_URL=https://api.openai.com/v1
+export LLM_MODEL=gpt-4
+export OPENAI_API_KEY=your_key
+```
+
+### Config Files
+
+- `config/config.exs` - Main configuration
+- `config/dev.exs` - Development settings
+- `config/test.exs` - Test settings  
+- `config/prod.exs` - Production settings
+
+## Adding New LLM Providers
+
+To add support for a new LLM provider:
+
+1. Create a new module: `lib/scr/llm/openai.ex`
+
+2. Implement the Behaviour:
+```elixir
+defmodule SCR.LLM.OpenAI do
+  @behaviour SCR.LLM.Behaviour
+  
+  def complete(prompt, options) do
+    # Implement OpenAI API call
+  end
+  
+  def chat(messages, options) do
+    # Implement chat completion
+  end
+  
+  # ... implement other callbacks
+end
+```
+
+3. Update configuration:
+```elixir
+config :scr, :llm,
+  provider: :openai,
+  base_url: "https://api.openai.com/v1",
+  api_key: System.get_env("OPENAI_API_KEY")
+```
+
+## Error Handling
+
+The system includes automatic fallback:
+
+1. **LLM Timeout**: Falls back to rule-based execution
+2. **Connection Error**: Uses mock data
+3. **Parse Error**: Falls back to default responses
+
+This ensures the system remains functional during development without a running LLM server.
+
+## Performance Considerations
+
+- **Model Loading**: First request may take 5-10 seconds
+- **Subsequent Requests**: Typically 1-3 seconds
+- **Timeout**: Default is 30 seconds (configurable)
+- **Parallel Execution**: Multiple agents can call LLM concurrently
+
+## Testing
+
+```bash
+# Test LLM directly
+mix run -e "SCR.LLM.Ollama.complete(\"Hi\", [timeout: 60000])"
+
+# Run demo
+mix run -e "SCR.CLI.Demo.main([])"
+```
+
+## Dependencies
+
+- **httpoison** (~> 2.0) - HTTP client
+- **jason** (~> 1.4) - JSON parsing
+
+## Future Enhancements
+
+- [ ] Streaming responses
+- [ ] Token counting and limits
+- [ ] Caching layer
+- [ ] More provider adapters
+- [ ] Vector embeddings for memory

@@ -88,6 +88,14 @@ defmodule SCR.Agent do
       {:ok, agent_state} ->
         full_state = Map.merge(initial_state, %{agent_state: agent_state, status: :running})
         schedule_heartbeat()
+        
+        # Broadcast agent started
+        broadcast_agent_event(:agent_started, %{
+          agent_id: agent_id,
+          agent_type: agent_type,
+          status: :running
+        })
+        
         {:ok, full_state}
 
       {:stop, reason} ->
@@ -152,10 +160,18 @@ defmodule SCR.Agent do
 
   def terminate(reason, state) do
     IO.puts("🛑 Agent #{state.agent_id} terminating: #{reason}")
+    
+    # Broadcast agent stopped
+    broadcast_agent_event(:agent_stopped, state.agent_id)
+    
     state.module.terminate(reason, state.agent_state)
   end
 
   # Private helpers
+  
+  defp broadcast_agent_event(event, data) do
+    Phoenix.PubSub.broadcast(SCR.PubSub, "agents", {event, data})
+  end
 
   defp via_tuple(agent_id) do
     {:via, Registry, {SCR.AgentRegistry, agent_id}}
