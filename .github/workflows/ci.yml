@@ -38,6 +38,7 @@ jobs:
             "docs/positioning/SCR_Competitive_Comparison.md" \
             "docs/roadmap/FUTURE_TODO.md" \
             "docs/release/RELEASE_NOTES_v0.4.0-alpha.md" \
+            "docs/release/RELEASE_NOTES_v0.5.0-alpha.md" \
             "plans/*.md"
 
       - name: Internal link check
@@ -46,7 +47,7 @@ jobs:
           fail: true
           args: >-
             --offline --no-progress
-            README.md QUICKSTART.md TUTORIALS.md DOCS_INDEX.md SCR_Improvements.md AGENTS.md docs/guides/SCR_UseCases.md docs/guides/SCR_Medium_Article.md docs/positioning/SCR_Competitive_Comparison.md docs/roadmap/FUTURE_TODO.md docs/release/RELEASE_NOTES_v0.4.0-alpha.md plans/phoenix_web_interface_plan.md
+            README.md QUICKSTART.md TUTORIALS.md DOCS_INDEX.md SCR_Improvements.md AGENTS.md docs/guides/SCR_UseCases.md docs/guides/SCR_Medium_Article.md docs/positioning/SCR_Competitive_Comparison.md docs/roadmap/FUTURE_TODO.md docs/release/RELEASE_NOTES_v0.4.0-alpha.md docs/release/RELEASE_NOTES_v0.5.0-alpha.md plans/phoenix_web_interface_plan.md
 
       - name: Version drift check
         run: |
@@ -66,6 +67,9 @@ jobs:
 
       - name: Install Elixir dependencies for docs command smoke
         run: mix deps.get
+
+      - name: Compile for docs command smoke
+        run: mix compile --warnings-as-errors
 
       - name: Docs command smoke checks
         run: |
