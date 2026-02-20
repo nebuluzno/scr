@@ -62,6 +62,24 @@ Then rerun:
 mix run -e "SCR.CLI.Demo.main([])"
 ```
 
+## 4a. Optional: use OpenAI provider
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_MODEL=gpt-4o-mini
+```
+
+Set provider:
+```elixir
+# config/config.exs
+config :scr, :llm, provider: :openai
+```
+
+Quick check:
+```elixir
+SCR.LLM.Client.ping()
+SCR.LLM.Client.chat([%{role: "user", content: "Say hello"}])
+```
+
 ## 4b. Optional: MCP smoke test (real server)
 Set env vars (verified example with MCP filesystem server):
 ```bash
@@ -119,6 +137,39 @@ ctx =
   })
 
 SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, "b" => 1}, ctx)
+```
+
+### Optional: test streaming responses
+```elixir
+SCR.LLM.Client.chat_stream(
+  [%{role: "user", content: "Explain supervision trees briefly"}],
+  fn chunk -> IO.write(chunk) end
+)
+```
+
+### Optional: enable DETS-backed memory persistence
+```elixir
+Application.put_env(:scr, :memory_storage, backend: :dets, path: "tmp/memory")
+```
+
+### Optional: tighten tool sandboxing
+```elixir
+Application.put_env(:scr, :tools,
+  Keyword.merge(Application.get_env(:scr, :tools, []),
+    sandbox: [
+      file_operations: [
+        strict_allow_writes: false,
+        demo_allow_writes: true,
+        allowed_write_prefixes: ["tmp/"],
+        max_write_bytes: 100_000
+      ],
+      code_execution: [
+        max_code_bytes: 4_000,
+        blocked_patterns: ["HTTPoison."]
+      ]
+    ]
+  )
+)
 ```
 
 ### Optional: Prometheus scrape check

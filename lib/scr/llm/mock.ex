@@ -38,6 +38,12 @@ defmodule SCR.LLM.Mock do
   end
 
   @impl true
+  def chat_stream(_messages, callback, _options \\ []) do
+    callback.("mock chat stream")
+    {:ok, %{content: "mock chat stream", streamed: true}}
+  end
+
+  @impl true
   def chat_with_tools(_messages, _tool_definitions, _options \\ []) do
     {:ok, %{content: "mock tool response", message: %{content: "mock tool response"}}}
   end

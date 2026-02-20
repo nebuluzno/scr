@@ -8,7 +8,8 @@ It provides:
 - Priority task queue with backpressure (`SCR.TaskQueue`)
 - Agent health monitoring + auto-heal hooks (`SCR.HealthCheck`)
 - Shared task context store for multi-agent coordination (`SCR.AgentContext`)
-- LLM execution (Ollama by default, mock provider for tests)
+- LLM execution (Ollama/OpenAI providers, mock provider for tests)
+- Streaming completions support (prompt and chat streams)
 - Unified tool execution (native tools + MCP integration path)
 - Tool composition helper for pipelines (`SCR.Tools.Chain`)
 - Tool rate limiting guardrail (`SCR.Tools.RateLimiter`)
@@ -84,7 +85,7 @@ Open [http://localhost:4000](http://localhost:4000).
 - `/tasks/new` Submit new tasks
 - `/agents` Inspect running agents
 - `/tools` Inspect/execute tools
-- `/memory` Browse ETS memory state with trace/context fields
+- `/memory` Browse memory state (ETS or DETS-backed) with trace/context fields
 - `/metrics` LLM and cache metrics
 - `/metrics/prometheus` Prometheus scrape endpoint for runtime telemetry
 
@@ -116,6 +117,34 @@ export LLM_MODEL=llama2
 ```
 
 If Ollama is unavailable, agents fall back to mock behavior where implemented.
+
+### OpenAI
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_MODEL=gpt-4o-mini
+```
+
+In `config/config.exs`:
+```elixir
+config :scr, :llm,
+  provider: :openai
+```
+
+Optional overrides:
+```bash
+export OPENAI_BASE_URL=https://api.openai.com
+```
+
+### Streaming example
+```bash
+iex -S mix
+```
+```elixir
+SCR.LLM.Client.chat_stream(
+  [%{role: "user", content: "Summarize OTP in one paragraph"}],
+  fn chunk -> IO.write(chunk) end
+)
+```
 
 ## Tool System (Hybrid)
 SCR uses a unified tool registry:
@@ -172,6 +201,24 @@ config :scr, :tool_rate_limit,
 config :scr, :agent_context,
   retention_ms: 3_600_000,
   cleanup_interval_ms: 300_000
+
+config :scr, :memory_storage,
+  backend: :ets, # :ets | :dets
+  path: "tmp/memory"
+
+config :scr, :tools,
+  sandbox: [
+    file_operations: [
+      strict_allow_writes: false,
+      demo_allow_writes: true,
+      allowed_write_prefixes: [],
+      max_write_bytes: 100_000
+    ],
+    code_execution: [
+      max_code_bytes: 4_000,
+      blocked_patterns: []
+    ]
+  ]
 
 config :scr, SCR.Telemetry,
   poller_interval_ms: 10_000

@@ -10,6 +10,8 @@ defmodule SCR.Tools.Policy do
 
   @default_max_params_bytes 20_000
   @default_max_result_bytes 100_000
+  @default_max_code_bytes 4_000
+  @default_max_write_bytes 100_000
   @risky_native_tools MapSet.new(["code_execution"])
 
   @spec authorize(ToolDescriptor.t(), map(), ExecutionContext.t()) :: :ok | {:error, term()}
@@ -18,7 +20,8 @@ defmodule SCR.Tools.Policy do
     cfg = tools_config()
 
     with :ok <- validate_payload_size(params, cfg),
-         :ok <- authorize_mode(descriptor, ctx, cfg) do
+         :ok <- authorize_mode(descriptor, ctx, cfg),
+         :ok <- validate_tool_sandbox(descriptor, params, ctx, cfg) do
       :ok
     end
   end
@@ -92,6 +95,90 @@ defmodule SCR.Tools.Policy do
     end
   rescue
     _ -> {:error, :invalid_params}
+  end
+
+  defp validate_tool_sandbox(%ToolDescriptor{name: "file_operations"}, params, ctx, cfg) do
+    sandbox_cfg = Keyword.get(cfg, :sandbox, [])
+    file_cfg = Keyword.get(sandbox_cfg, :file_operations, [])
+
+    operation = Map.get(params, "operation")
+    path = Map.get(params, "path", "")
+    content = Map.get(params, "content", "")
+    max_write_bytes = Keyword.get(file_cfg, :max_write_bytes, @default_max_write_bytes)
+
+    if operation in ["write", "append"] do
+      allow_writes =
+        case ctx.mode do
+          :strict -> Keyword.get(file_cfg, :strict_allow_writes, false)
+          _ -> Keyword.get(file_cfg, :demo_allow_writes, true)
+        end
+
+      cond do
+        not allow_writes ->
+          {:error, :write_not_allowed}
+
+        not valid_relative_path?(path) ->
+          {:error, :invalid_path}
+
+        byte_size(content) > max_write_bytes ->
+          {:error, :write_too_large}
+
+        not allowlisted_write_path?(path, file_cfg) ->
+          {:error, :path_not_allowlisted}
+
+        true ->
+          :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp validate_tool_sandbox(%ToolDescriptor{name: "code_execution"}, params, _ctx, cfg) do
+    sandbox_cfg = Keyword.get(cfg, :sandbox, [])
+    code_cfg = Keyword.get(sandbox_cfg, :code_execution, [])
+    code = Map.get(params, "code", "")
+    max_code_bytes = Keyword.get(code_cfg, :max_code_bytes, @default_max_code_bytes)
+    blocked_patterns = Keyword.get(code_cfg, :blocked_patterns, [])
+
+    cond do
+      byte_size(code) > max_code_bytes ->
+        {:error, :code_too_large}
+
+      blocked_pattern?(code, blocked_patterns) ->
+        {:error, :blocked_code_pattern}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_tool_sandbox(_descriptor, _params, _ctx, _cfg), do: :ok
+
+  defp allowlisted_write_path?(path, file_cfg) do
+    prefixes = Keyword.get(file_cfg, :allowed_write_prefixes, [])
+
+    if prefixes == [] do
+      true
+    else
+      Enum.any?(prefixes, fn prefix ->
+        String.starts_with?(path, prefix)
+      end)
+    end
+  end
+
+  defp valid_relative_path?(path) when is_binary(path) do
+    not String.starts_with?(path, "/") and not String.contains?(path, "..")
+  end
+
+  defp valid_relative_path?(_), do: false
+
+  defp blocked_pattern?(code, patterns) do
+    Enum.any?(patterns, fn
+      %Regex{} = regex -> Regex.match?(regex, code)
+      pattern when is_binary(pattern) -> String.contains?(code, pattern)
+      _ -> false
+    end)
   end
 
   defp mcp_tool_allowlisted?(%ToolDescriptor{source: :mcp, server: server, name: name}, cfg) do

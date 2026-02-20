@@ -38,12 +38,12 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Visual regression baseline-diff checks are now blocking in CI using Playwright snapshots.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
-- `[planned]` OpenAI adapter support
+- `[done]` OpenAI adapter support
 - `[planned]` Anthropic adapter support
-- `[planned]` Streaming LLM responses
-- `[planned]` Persistent storage backend (beyond ETS-only runtime)
+- `[done]` Streaming LLM responses
+- `[done]` Persistent storage backend (DETS-backed MemoryAgent option)
 - `[planned]` Distributed agent support
-- `[planned]` Enhanced tool sandboxing
+- `[done]` Enhanced tool sandboxing
 
 ## Additional Suggestions (Post-Implementation)
 - `[done]` Deep health probes: per-agent health callbacks and probe-based validation in `SCR.HealthCheck`.
@@ -53,7 +53,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Execution-context propagation: `trace_id`, `parent_task_id`, and `subtask_id` are propagated across planner/worker/tool path.
 - `[done]` Add telemetry events for queue actions and tool execution outcomes/duration, with Prometheus export.
 - `[planned]` Add production JSON log profile and OpenTelemetry log/trace export bridge.
-- `[planned]` Promote visual regression from artifact-only to baseline-diff blocking checks after snapshot stabilization.
+- `[done]` Promote visual regression from artifact-only to baseline-diff blocking checks after snapshot stabilization.
 
 ## New BEAM/OTP-Focused Suggestions
 - `[idea]` Add `:telemetry` event stream + `TelemetryMetricsPrometheus` endpoint for queue depth, tool latency, and supervisor restarts, with per-agent labels.
@@ -628,8 +628,8 @@ end
 
 ## Recommended Next Steps
 
-1. **Implement LiveView** - Biggest UX improvement
-2. **Add Task Queue** - Essential for production
-3. **Structured Logging** - Critical for debugging
-4. **Health Checks** - Reliability improvement
-5. **Rate Limiting** - Cost protection
+1. **Implement Anthropic adapter support** - Keep provider parity with OpenAI/Ollama.
+2. **Add production JSON log profile + OTEL log/trace export bridge** - Better production observability.
+3. **Expand tutorial labs** - Cover custom tool authoring and full multi-agent debugging flow.
+4. **Distributed agent support** - Enable cross-node runtime experiments.
+5. **Queue durability beyond memory** - Optional replayable queue backend for restart resilience.

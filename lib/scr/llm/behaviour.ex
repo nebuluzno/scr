@@ -91,6 +91,24 @@ defmodule SCR.LLM.Behaviour do
               {:ok, map()} | {:error, term()}
 
   @doc """
+  Stream a chat completion, calling the callback for each emitted content chunk.
+
+  ## Parameters
+    - messages: List of chat messages
+    - callback: Function to call with each streamed text chunk
+    - options: Keyword list of provider options
+
+  ## Returns
+    - {:ok, final_response} on success
+    - {:error, reason} on failure
+  """
+  @callback chat_stream(
+              messages :: [%{optional(:role) => String.t(), optional(:content) => String.t()}],
+              callback :: (String.t() -> term()),
+              options :: keyword()
+            ) :: {:ok, map()} | {:error, term()}
+
+  @doc """
   Generate a chat completion with tool calling support.
 
   ## Parameters

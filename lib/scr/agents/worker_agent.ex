@@ -51,6 +51,7 @@ defmodule SCR.Agents.WorkerAgent do
     parent_task_id = Map.get(task_data, :parent_task_id)
     subtask_id = Map.get(task_data, :subtask_id, task_id)
     trace_id = Map.get(task_data, :trace_id, UUID.uuid4())
+    stream_response = Map.get(task_data, :stream, false)
 
     # Process the task using LLM
     result =
@@ -58,7 +59,8 @@ defmodule SCR.Agents.WorkerAgent do
         worker_agent_id: state.agent_id,
         parent_task_id: parent_task_id,
         subtask_id: subtask_id,
-        trace_id: trace_id
+        trace_id: trace_id,
+        stream: stream_response
       })
 
     _ =
@@ -151,7 +153,18 @@ defmodule SCR.Agents.WorkerAgent do
       end
     else
       # No tools available, use regular completion
-      case Client.complete(prompt, temperature: 0.7, max_tokens: 2048) do
+      llm_result =
+        if Map.get(trace_ctx, :stream, false) do
+          stream_callback = fn chunk ->
+            Logger.debug("worker.llm.stream.chunk size=#{byte_size(chunk)}")
+          end
+
+          Client.stream(prompt, stream_callback, temperature: 0.7, max_tokens: 2048)
+        else
+          Client.complete(prompt, temperature: 0.7, max_tokens: 2048)
+        end
+
+      case llm_result do
         {:ok, %{content: llm_response}} ->
           format_result(task_type, description, task_id, llm_response, :llm)
 

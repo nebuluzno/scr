@@ -64,4 +64,77 @@ defmodule SCR.Tools.PolicyTest do
     ctx = ExecutionContext.new(%{mode: :demo})
     assert :ok = Policy.authorize(descriptor, %{}, ctx)
   end
+
+  test "strict mode blocks file writes by default" do
+    descriptor = %ToolDescriptor{
+      name: "file_operations",
+      source: :native,
+      module: SCR.Tools.FileOperations,
+      description: "file operations",
+      schema: %{"type" => "object", "properties" => %{}}
+    }
+
+    ctx = ExecutionContext.new(%{mode: :strict})
+
+    assert {:error, :write_not_allowed} =
+             Policy.authorize(
+               descriptor,
+               %{"operation" => "write", "path" => "tmp/out.txt", "content" => "hello"},
+               ctx
+             )
+  end
+
+  test "strict mode allows file writes when sandbox config allows and path is allowlisted" do
+    Application.put_env(:scr, :tools,
+      sandbox: [
+        file_operations: [
+          strict_allow_writes: true,
+          demo_allow_writes: true,
+          allowed_write_prefixes: ["tmp/"],
+          max_write_bytes: 10_000
+        ]
+      ]
+    )
+
+    descriptor = %ToolDescriptor{
+      name: "file_operations",
+      source: :native,
+      module: SCR.Tools.FileOperations,
+      description: "file operations",
+      schema: %{"type" => "object", "properties" => %{}}
+    }
+
+    ctx = ExecutionContext.new(%{mode: :strict})
+
+    assert :ok =
+             Policy.authorize(
+               descriptor,
+               %{"operation" => "write", "path" => "tmp/out.txt", "content" => "hello"},
+               ctx
+             )
+  end
+
+  test "code execution rejects blocked sandbox patterns" do
+    Application.put_env(:scr, :tools,
+      strict_native_allowlist: ["code_execution"],
+      sandbox: [code_execution: [max_code_bytes: 4_000, blocked_patterns: ["HTTPoison."]]]
+    )
+
+    descriptor = %ToolDescriptor{
+      name: "code_execution",
+      source: :native,
+      module: SCR.Tools.CodeExecution,
+      description: "code",
+      schema: %{"type" => "object", "properties" => %{}}
+    }
+
+    ctx = ExecutionContext.new(%{mode: :strict})
+
+    assert {:error, :blocked_code_pattern} =
+             Policy.authorize(
+               descriptor,
+               %{"code" => "HTTPoison.get!(\"https://example.com\")"},
+               ctx
+             )
+  end
 end

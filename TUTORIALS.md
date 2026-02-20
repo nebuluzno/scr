@@ -195,6 +195,70 @@ npm run visual:update
 - Intentional UI updates are captured in `visual_tests/snapshots/`.
 - CI visual regression job uses the same baseline files.
 
+## Tutorial 6: OpenAI + Streaming + Persistent Memory + Sandbox
+
+### Goal
+Run SCR with OpenAI provider, stream model output, persist memory to DETS, and validate sandbox controls.
+
+### Steps
+1. Configure OpenAI:
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_MODEL=gpt-4o-mini
+```
+2. Set provider:
+```elixir
+# config/config.exs
+config :scr, :llm, provider: :openai
+```
+3. Start IEx:
+```bash
+iex -S mix
+```
+4. Stream a chat response:
+```elixir
+SCR.LLM.Client.chat_stream(
+  [%{role: "user", content: "Explain OTP supervision in 5 bullet points"}],
+  fn chunk -> IO.write(chunk) end
+)
+```
+5. Enable DETS memory persistence:
+```elixir
+Application.put_env(:scr, :memory_storage, backend: :dets, path: "tmp/memory")
+```
+6. Tighten sandbox rules:
+```elixir
+tools_cfg = Application.get_env(:scr, :tools, [])
+
+Application.put_env(:scr, :tools,
+  Keyword.merge(tools_cfg,
+    sandbox: [
+      file_operations: [
+        strict_allow_writes: false,
+        demo_allow_writes: true,
+        allowed_write_prefixes: ["tmp/"],
+        max_write_bytes: 100_000
+      ],
+      code_execution: [
+        max_code_bytes: 4_000,
+        blocked_patterns: ["HTTPoison."]
+      ]
+    ]
+  )
+)
+```
+7. Validate strict sandbox denial:
+```elixir
+ctx = SCR.Tools.ExecutionContext.new(%{mode: :strict})
+SCR.Tools.Registry.execute_tool("file_operations", %{"operation" => "write", "path" => "tmp/a.txt", "content" => "x"}, ctx)
+```
+
+### Expected Results
+- OpenAI `ping`/chat calls succeed.
+- Stream callback receives incremental chunks.
+- MemoryAgent can restore task memory from DETS on restart.
+- Strict mode blocks disallowed file writes or blocked code patterns.
+
 ## Next Tutorials (Planned)
 - Build a custom native tool and register it safely.
 - Add an MCP server profile and strict allowlist policy.

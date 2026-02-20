@@ -235,14 +235,57 @@ defmodule SCR.LLM.Ollama do
 
     headers = [
       {"Content-Type", "application/json"},
-      {"Accept", "text/event-stream"}
+      {"Accept", "application/x-ndjson"}
     ]
 
     # Use HTTPoison.Async for streaming
     case HTTPoison.post(url, Jason.encode!(payload), headers, timeout: timeout, stream_to: self()) do
       {:ok, %{id: request_id}} ->
-        # Collect chunks and call callback
-        collect_stream_chunks(request_id, callback, "", timeout)
+        collect_stream_chunks(request_id, callback, "", timeout, model, :generate)
+
+      {:error, %{reason: reason}} ->
+        {:error, %{type: :http_error, reason: reason}}
+    end
+  end
+
+  @impl true
+  def chat_stream(messages, callback, options \\ []) when is_function(callback, 1) do
+    options = Behaviour.merge_options(options)
+    model = Keyword.get(options, :model, default_model())
+    temperature = Keyword.get(options, :temperature, 0.7)
+    max_tokens = Keyword.get(options, :max_tokens, 2048)
+    timeout = Keyword.get(options, :timeout, 120_000)
+
+    ollama_messages =
+      Enum.map(messages, fn
+        %{role: role, content: content} -> %{role: role, content: content}
+        %{"role" => role, "content" => content} -> %{role: role, content: content}
+      end)
+
+    payload = %{
+      model: model,
+      messages: ollama_messages,
+      temperature: temperature,
+      options: %{
+        num_predict: max_tokens
+      },
+      stream: true
+    }
+
+    headers = [
+      {"Content-Type", "application/json"},
+      {"Accept", "application/x-ndjson"}
+    ]
+
+    case HTTPoison.post(
+           base_url() <> "/api/chat",
+           Jason.encode!(payload),
+           headers,
+           timeout: timeout,
+           stream_to: self()
+         ) do
+      {:ok, %{id: request_id}} ->
+        collect_stream_chunks(request_id, callback, "", timeout, model, :chat)
 
       {:error, %{reason: reason}} ->
         {:error, %{type: :http_error, reason: reason}}
@@ -250,33 +293,29 @@ defmodule SCR.LLM.Ollama do
   end
 
   # Collect streaming chunks from the HTTP response
-  defp collect_stream_chunks(request_id, callback, acc, timeout) do
+  defp collect_stream_chunks(request_id, callback, acc, timeout, model, mode) do
     receive do
       {:http_reply, ^request_id, %{status_code: 200, body: _body}} ->
         # Initial response, continue receiving chunks
-        collect_stream_chunks(request_id, callback, acc, timeout)
+        collect_stream_chunks(request_id, callback, acc, timeout, model, mode)
 
       {:http_reply, ^request_id, %{status_code: status}} ->
         {:error, %{type: :http_error, status: status}}
 
       {:stream, ^request_id, %HTTPoison.AsyncChunk{chunk: chunk}} ->
-        # Parse SSE chunk
-        case parse_sse_chunk(chunk) do
-          nil ->
-            # Empty or non-data chunk, continue
-            collect_stream_chunks(request_id, callback, acc, timeout)
+        case parse_stream_chunk(chunk, mode) do
+          :noop ->
+            collect_stream_chunks(request_id, callback, acc, timeout, model, mode)
 
           text when is_binary(text) ->
-            # Call the callback with this chunk
             callback.(text)
-            collect_stream_chunks(request_id, callback, acc <> text, timeout)
+            collect_stream_chunks(request_id, callback, acc <> text, timeout, model, mode)
 
           :done ->
-            # Stream complete
             {:ok,
              %{
                content: acc,
-               model: default_model(),
+               model: model,
                finish_reason: "stop",
                streamed: true
              }}
@@ -286,7 +325,7 @@ defmodule SCR.LLM.Ollama do
         {:ok,
          %{
            content: acc,
-           model: default_model(),
+           model: model,
            finish_reason: "stop",
            streamed: true
          }}
@@ -296,28 +335,44 @@ defmodule SCR.LLM.Ollama do
     end
   end
 
-  # Parse Server-Sent Events chunk from Ollama
-  defp parse_sse_chunk(chunk) do
+  defp parse_stream_chunk(chunk, mode) do
     chunk
     |> String.split("\n")
-    |> Enum.find_value(fn line ->
+    |> Enum.find_value(:noop, fn line ->
       case String.trim(line) do
         "" ->
-          nil
+          false
 
-        "data: [DONE]" ->
-          :done
-
-        "data: " <> json_data ->
-          case Jason.decode(json_data) do
-            {:ok, %{"response" => response}} -> response
-            _ -> nil
-          end
-
-        _ ->
-          nil
+        json_data ->
+          parse_stream_json(json_data, mode)
       end
     end)
+  end
+
+  defp parse_stream_json(json_data, :generate) do
+    case Jason.decode(json_data) do
+      {:ok, %{"done" => true}} ->
+        :done
+
+      {:ok, %{"response" => response}} when is_binary(response) ->
+        response
+
+      _ ->
+        false
+    end
+  end
+
+  defp parse_stream_json(json_data, :chat) do
+    case Jason.decode(json_data) do
+      {:ok, %{"done" => true}} ->
+        :done
+
+      {:ok, %{"message" => %{"content" => response}}} when is_binary(response) ->
+        response
+
+      _ ->
+        false
+    end
   end
 
   @impl Behaviour

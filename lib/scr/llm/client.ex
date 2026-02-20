@@ -44,7 +44,7 @@ defmodule SCR.LLM.Client do
       SCR.LLM.Cache.stats()
   """
 
-  alias SCR.LLM.{Ollama, Mock, Cache, Metrics}
+  alias SCR.LLM.{Ollama, OpenAI, Mock, Cache, Metrics}
   alias SCR.Tools.Registry
   alias SCR.Tools.ExecutionContext
 
@@ -156,6 +156,26 @@ defmodule SCR.LLM.Client do
   end
 
   @doc """
+  Stream a chat completion.
+
+  Note: Streaming responses are not cached.
+  """
+  def chat_stream(messages, callback, options \\ []) do
+    if function_exported?(adapter(), :chat_stream, 3) do
+      adapter().chat_stream(messages, callback, options)
+    else
+      case chat(messages, options) do
+        {:ok, %{content: content} = response} ->
+          callback.(content)
+          {:ok, Map.put(response, :streamed, true)}
+
+        error ->
+          error
+      end
+    end
+  end
+
+  @doc """
   Check if the LLM service is available.
   """
   def ping, do: adapter().ping()
@@ -214,13 +234,15 @@ defmodule SCR.LLM.Client do
   defp adapter do
     case provider() do
       :mock -> Mock
+      :openai -> OpenAI
       _ -> Ollama
     end
   end
 
   defp track_metrics(result, options) do
-    model = Keyword.get(options, :model, "llama2")
-    provider = Keyword.get(options, :provider, :ollama)
+    llm_cfg = Application.get_env(:scr, :llm, [])
+    model = Keyword.get(options, :model, Keyword.get(llm_cfg, :default_model, "llama2"))
+    provider = Keyword.get(options, :provider, provider())
 
     case result do
       {:ok, response} ->

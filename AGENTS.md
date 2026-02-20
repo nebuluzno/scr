@@ -43,7 +43,7 @@ SCR.Supervisor.Tree (Supervisor)
 | PlannerAgent | `SCR.Agents.PlannerAgent` | Decomposes tasks, coordinates workflow, spawns workers |
 | WorkerAgent | `SCR.Agents.WorkerAgent` | Executes subtasks with LLM + tools support |
 | CriticAgent | `SCR.Agents.CriticAgent` | Evaluates results, provides quality feedback |
-| MemoryAgent | `SCR.Agents.MemoryAgent` | Persistent ETS storage, LLM-powered summarization |
+| MemoryAgent | `SCR.Agents.MemoryAgent` | Memory storage (ETS with optional DETS persistence), LLM-powered summarization |
 | ResearcherAgent | `SCR.Agents.ResearcherAgent` | Web research, information gathering |
 | WriterAgent | `SCR.Agents.WriterAgent` | Content generation, summarization |
 | ValidatorAgent | `SCR.Agents.ValidatorAgent` | Quality assurance, fact-checking |
@@ -75,6 +75,7 @@ All inter-agent communication uses `SCR.Message` struct:
 
 - `SCR.LLM.Client` - Unified LLM client with caching and metrics
 - `SCR.LLM.Ollama` - Ollama adapter for local LLMs
+- `SCR.LLM.OpenAI` - OpenAI adapter (chat, tools, embeddings, streaming)
 - `SCR.LLM.Cache` - Response caching (ETS-based)
 - `SCR.LLM.Metrics` - Token usage and cost tracking
 - `SCR.LLM.Behaviour` - Behaviour for LLM adapters
@@ -98,6 +99,9 @@ All inter-agent communication uses `SCR.Message` struct:
 ```bash
 LLM_BASE_URL=http://localhost:11434  # Ollama server
 LLM_MODEL=llama2                      # Model name
+OPENAI_API_KEY=sk-...                 # OpenAI API key
+OPENAI_MODEL=gpt-4o-mini              # OpenAI model
+SCR_MEMORY_PATH=tmp/memory            # DETS persistence path (optional)
 ```
 
 ### Config Files
@@ -114,6 +118,7 @@ config :scr, :llm,
   provider: :ollama,
   base_url: "http://localhost:11434",
   default_model: "llama2",
+  api_key: System.get_env("OPENAI_API_KEY"),
   timeout: 60_000
 ```
 
@@ -187,7 +192,7 @@ SCR.LLM.Metrics.stats()
 
 ## ETS Tables
 
-The application uses named ETS tables created by MemoryAgent:
+The application uses named ETS tables created by MemoryAgent (and can optionally restore data from DETS files):
 
 - `:scr_memory` - Task results
 - `:scr_tasks` - Task definitions
@@ -265,11 +270,9 @@ Key dependencies from `mix.exs`:
 
 See `SCR_Improvements.md` for planned features:
 
-- OpenAI and Anthropic adapter support
-- Streaming responses
-- Persistent storage backend
+- Anthropic adapter support
+- Production JSON logging profile + OpenTelemetry log/trace export bridge
 - Distributed agent support
-- Enhanced tool sandboxing
 
 ## Related Documentation
 

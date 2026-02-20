@@ -25,10 +25,12 @@ defmodule SCR.Agents.MemoryAgent do
     create_ets_table(:scr_agent_states)
 
     agent_id = Map.get(init_arg, :agent_id, "memory_1")
+    {backend, dets_tables} = init_storage_backend()
+    load_persisted_data(dets_tables)
 
-    IO.puts("💾 MemoryAgent initialized with ETS storage")
+    IO.puts("💾 MemoryAgent initialized with #{backend} storage")
 
-    {:ok, %{agent_id: agent_id, storage: :ets}}
+    {:ok, %{agent_id: agent_id, storage: backend, dets_tables: dets_tables}}
   end
 
   # Creates an ETS table if it doesn't already exist
@@ -51,6 +53,7 @@ defmodule SCR.Agents.MemoryAgent do
     # Store task in memory
     task_id = Map.get(task_data, :task_id, UUID.uuid4())
     :ets.insert(:scr_tasks, {task_id, task_data})
+    maybe_persist(:scr_tasks, task_id, task_data, internal_state)
 
     IO.puts("💾 Stored task: #{task_id}")
 
@@ -64,6 +67,7 @@ defmodule SCR.Agents.MemoryAgent do
     # Store result in memory
     task_id = Map.get(result_data, :task_id, UUID.uuid4())
     :ets.insert(:scr_memory, {task_id, result_data})
+    maybe_persist(:scr_memory, task_id, result_data, internal_state)
 
     IO.puts("💾 Stored result for task: #{task_id}")
 
@@ -112,6 +116,7 @@ defmodule SCR.Agents.MemoryAgent do
 
     if agent_id do
       :ets.insert(:scr_agent_states, {agent_id, status_data})
+      maybe_persist(:scr_agent_states, agent_id, status_data, internal_state)
     end
 
     {:noreply, internal_state}
@@ -140,11 +145,85 @@ defmodule SCR.Agents.MemoryAgent do
     {:noreply, state}
   end
 
-  def terminate(_reason, _state) do
+  def terminate(_reason, state) do
     IO.puts("💾 MemoryAgent terminating - persisting data to disk...")
+    close_dets_tables(state)
     # In a real system, we'd persist to disk here
     :ok
   end
+
+  defp init_storage_backend do
+    cfg = Application.get_env(:scr, :memory_storage, [])
+    backend = Keyword.get(cfg, :backend, :ets)
+
+    case backend do
+      :dets ->
+        path = Keyword.get(cfg, :path, "tmp/memory")
+        File.mkdir_p!(path)
+        {:dets, open_dets_tables(path)}
+
+      _ ->
+        {:ets, %{}}
+    end
+  end
+
+  defp open_dets_tables(path) do
+    %{
+      scr_tasks: open_dets_table(:scr_tasks, path),
+      scr_memory: open_dets_table(:scr_memory, path),
+      scr_agent_states: open_dets_table(:scr_agent_states, path)
+    }
+  end
+
+  defp open_dets_table(name, path) do
+    file = String.to_charlist(Path.join(path, "#{name}.dets"))
+
+    case :dets.open_file(name, type: :set, file: file) do
+      {:ok, table} -> table
+      {:error, reason} -> raise "Failed to open DETS table #{name}: #{inspect(reason)}"
+    end
+  end
+
+  defp load_persisted_data(dets_tables) when map_size(dets_tables) == 0, do: :ok
+
+  defp load_persisted_data(dets_tables) do
+    restore_table(:scr_tasks, Map.get(dets_tables, :scr_tasks))
+    restore_table(:scr_memory, Map.get(dets_tables, :scr_memory))
+    restore_table(:scr_agent_states, Map.get(dets_tables, :scr_agent_states))
+  end
+
+  defp restore_table(_ets_table, nil), do: :ok
+
+  defp restore_table(ets_table, dets_table) do
+    dets_table
+    |> :dets.match_object({:"$1", :"$2"})
+    |> Enum.each(fn {key, value} -> :ets.insert(ets_table, {key, value}) end)
+  rescue
+    _ -> :ok
+  end
+
+  defp maybe_persist(_table, _key, _value, %{storage: :ets}), do: :ok
+
+  defp maybe_persist(table, key, value, %{storage: :dets, dets_tables: dets_tables}) do
+    case Map.get(dets_tables, table) do
+      nil ->
+        :ok
+
+      dets_table ->
+        :ok = :dets.insert(dets_table, {key, value})
+    end
+  rescue
+    _ -> :ok
+  end
+
+  defp close_dets_tables(%{storage: :dets, dets_tables: dets_tables}) do
+    Enum.each(dets_tables, fn {_name, table} ->
+      _ = :dets.sync(table)
+      _ = :dets.close(table)
+    end)
+  end
+
+  defp close_dets_tables(_), do: :ok
 
   # Query API
 
