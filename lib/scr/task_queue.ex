@@ -121,9 +121,10 @@ defmodule SCR.TaskQueue do
   end
 
   @impl true
-  def handle_call({:enqueue, _task, _priority}, _from, %{size: size, max_size: max_size} = state)
+  def handle_call({:enqueue, _task, priority}, _from, %{size: size, max_size: max_size} = state)
       when size >= max_size do
     Logger.warning("queue.enqueue.rejected reason=queue_full")
+    emit_enqueue_event(priority, :rejected, state.size)
     next_state = %{state | rejected: state.rejected + 1}
     {:reply, {:error, :queue_full}, next_state}
   end
@@ -134,6 +135,7 @@ defmodule SCR.TaskQueue do
     queue = Map.fetch!(state, priority)
     next_queue = :queue.in(task, queue)
     next_state = state |> Map.put(priority, next_queue) |> increment_size()
+    emit_enqueue_event(priority, :accepted, next_state.size)
 
     broadcast({:task_created, %{task: task, priority: priority, queued_at: DateTime.utc_now()}})
 
@@ -142,10 +144,12 @@ defmodule SCR.TaskQueue do
 
   def handle_call(:dequeue, _from, state) do
     case pop_next(state) do
-      {:ok, task, next_state} ->
+      {:ok, task, priority, next_state} ->
+        emit_dequeue_event(priority, :ok, next_state.size)
         {:reply, {:ok, task}, next_state}
 
       :empty ->
+        emit_dequeue_event(:none, :empty, state.size)
         {:reply, :empty, state}
     end
   end
@@ -226,7 +230,7 @@ defmodule SCR.TaskQueue do
           |> Map.put(priority, rest)
           |> decrement_size()
 
-        {:ok, task, next_state}
+        {:ok, task, priority, next_state}
 
       {:empty, _} ->
         :empty
@@ -253,5 +257,21 @@ defmodule SCR.TaskQueue do
     Phoenix.PubSub.broadcast(SCR.PubSub, "tasks", payload)
   rescue
     _ -> :ok
+  end
+
+  defp emit_enqueue_event(priority, result, queue_size) do
+    :telemetry.execute(
+      [:scr, :task_queue, :enqueue],
+      %{count: 1, queue_size: queue_size},
+      %{priority: priority, result: result}
+    )
+  end
+
+  defp emit_dequeue_event(priority, result, queue_size) do
+    :telemetry.execute(
+      [:scr, :task_queue, :dequeue],
+      %{count: 1, queue_size: queue_size},
+      %{priority: priority, result: result}
+    )
   end
 end

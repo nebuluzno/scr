@@ -175,6 +175,7 @@ defmodule SCR.Tools.Registry do
 
   @impl true
   def handle_call({:execute, tool_name, params, ctx}, _from, state) do
+    started_at = System.monotonic_time(:millisecond)
     state = sync_mcp_tools(state)
     normalized_params = normalize_params(params)
     Trace.put_metadata(ctx)
@@ -186,6 +187,7 @@ defmodule SCR.Tools.Registry do
          {:ok, response} <- execute_with_descriptor(descriptor, normalized_params, ctx),
          :ok <- Policy.validate_result_payload(response, ctx) do
       Logger.info("tool.execute.ok name=#{tool_name}")
+      emit_tool_execute_event(tool_name, descriptor.source, :ok, started_at)
       {:reply, {:ok, response}, state}
     else
       {:error, :mcp_unavailable} ->
@@ -193,15 +195,29 @@ defmodule SCR.Tools.Registry do
 
         if fallback_to_native_enabled?() do
           case fallback_native(tool_name, normalized_params, ctx, state) do
-            {:ok, response} -> {:reply, {:ok, response}, state}
-            {:error, reason} -> {:reply, {:error, reason}, state}
+            {:ok, response} ->
+              emit_tool_execute_event(tool_name, :native, :ok, started_at)
+              {:reply, {:ok, response}, state}
+
+            {:error, reason} ->
+              emit_tool_execute_event(tool_name, :mcp, reason, started_at)
+              {:reply, {:error, reason}, state}
           end
         else
+          emit_tool_execute_event(tool_name, :mcp, :mcp_unavailable, started_at)
           {:reply, {:error, :mcp_unavailable}, state}
         end
 
       {:error, reason} ->
         Logger.warning("tool.execute.error name=#{tool_name} reason=#{inspect(reason)}")
+
+        emit_tool_execute_event(
+          tool_name,
+          resolve_source_hint(tool_name, ctx, state),
+          reason,
+          started_at
+        )
+
         {:reply, {:error, reason}, state}
     end
   end
@@ -424,4 +440,37 @@ defmodule SCR.Tools.Registry do
         {Keyword.get(cfg, :default_max_calls, 60), Keyword.get(cfg, :default_window_ms, 60_000)}
     end
   end
+
+  defp emit_tool_execute_event(tool_name, source, result, started_at_ms) do
+    duration_ms = max(System.monotonic_time(:millisecond) - started_at_ms, 0)
+
+    :telemetry.execute(
+      [:scr, :tools, :execute],
+      %{count: 1, duration_ms: duration_ms},
+      %{tool: tool_name, source: source || :unknown, result: telemetry_result(result)}
+    )
+  end
+
+  defp resolve_source_hint(_tool_name, %ExecutionContext{source: :mcp}, _state), do: :mcp
+  defp resolve_source_hint(_tool_name, %ExecutionContext{source: :native}, _state), do: :native
+
+  defp resolve_source_hint(tool_name, _ctx, state) do
+    cond do
+      Map.has_key?(state.native_tools, tool_name) -> :native
+      Map.has_key?(state.mcp_tools, tool_name) -> :mcp
+      true -> :unknown
+    end
+  end
+
+  defp telemetry_result(:ok), do: :ok
+  defp telemetry_result(:mcp_unavailable), do: :mcp_unavailable
+  defp telemetry_result(:rate_limited), do: :rate_limited
+  defp telemetry_result(:timeout), do: :timeout
+  defp telemetry_result(:invalid_params), do: :invalid_params
+  defp telemetry_result(:tool_not_allowed), do: :tool_not_allowed
+  defp telemetry_result(:not_found), do: :not_found
+  defp telemetry_result({:execution_error, _}), do: :execution_error
+  defp telemetry_result({:payload_too_large, _}), do: :payload_too_large
+  defp telemetry_result({:invalid_params, _}), do: :invalid_params
+  defp telemetry_result(_), do: :error
 end

@@ -29,6 +29,10 @@ defmodule SCRWeb.Router do
     post("/tools/execute", ToolController, :execute)
   end
 
+  scope "/", SCRWeb do
+    get("/metrics/prometheus", MetricsController, :prometheus)
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", SCRWeb do
   #   pipe_through :api

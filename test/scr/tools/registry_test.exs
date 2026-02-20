@@ -81,4 +81,38 @@ defmodule SCR.Tools.RegistryTest do
     assert {:error, :rate_limited} =
              Registry.execute_tool("calculator", %{"operation" => "add", "a" => 2, "b" => 3})
   end
+
+  test "emits telemetry for successful and failed tool executions" do
+    handler_id = "tools-telemetry-#{System.unique_integer([:positive])}"
+    parent = self()
+
+    :ok =
+      :telemetry.attach(
+        handler_id,
+        [:scr, :tools, :execute],
+        fn event, measurements, metadata, _ ->
+          send(parent, {:telemetry_event, event, measurements, metadata})
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+
+    assert {:ok, _} =
+             Registry.execute_tool("calculator", %{"operation" => "add", "a" => 10, "b" => 5})
+
+    assert {:error, :not_found} = Registry.execute_tool("missing_tool", %{})
+
+    assert_receive {:telemetry_event, [:scr, :tools, :execute],
+                    %{count: 1, duration_ms: duration_ok},
+                    %{tool: "calculator", source: :native, result: :ok}}
+
+    assert duration_ok >= 0
+
+    assert_receive {:telemetry_event, [:scr, :tools, :execute],
+                    %{count: 1, duration_ms: duration_error},
+                    %{tool: "missing_tool", result: :not_found}}
+
+    assert duration_error >= 0
+  end
 end

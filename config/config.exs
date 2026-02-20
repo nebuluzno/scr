@@ -49,6 +49,8 @@ config :scr, :agent_context,
   retention_ms: 3_600_000,
   cleanup_interval_ms: 300_000
 
+config :scr, SCR.Telemetry, poller_interval_ms: 10_000
+
 # Import environment-specific config
 if config_env() == :dev do
   import_config "dev.exs"

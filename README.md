@@ -84,6 +84,7 @@ Open [http://localhost:4000](http://localhost:4000).
 - `/tools` Inspect/execute tools
 - `/memory` Browse ETS memory state with trace/context fields
 - `/metrics` LLM and cache metrics
+- `/metrics/prometheus` Prometheus scrape endpoint for runtime telemetry
 
 Dashboard now includes queue controls:
 - Pause/resume task dispatch
@@ -170,6 +171,9 @@ config :scr, :agent_context,
   retention_ms: 3_600_000,
   cleanup_interval_ms: 300_000
 
+config :scr, SCR.Telemetry,
+  poller_interval_ms: 10_000
+
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:trace_id, :task_id, :parent_task_id, :subtask_id, :agent_id]
@@ -187,6 +191,7 @@ SCR.Agent.health_check("planner_1")
 SCR.Tools.RateLimiter.stats()
 SCR.AgentContext.stats()
 SCR.AgentContext.list() |> Enum.take(3)
+String.slice(SCR.Telemetry.scrape(), 0, 500)
 
 # Example context-aware tool call
 ctx =
@@ -200,6 +205,11 @@ ctx =
   })
 
 SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 2, "b" => 2}, ctx)
+```
+
+Prometheus scrape check:
+```bash
+curl -s http://localhost:4000/metrics/prometheus | head -n 40
 ```
 
 ## MCP Smoke Check (Dev)

@@ -24,6 +24,8 @@ defmodule SCR do
     children = [
       # Start PubSub for real-time updates
       {Phoenix.PubSub, name: SCR.PubSub},
+      # Telemetry poller + Prometheus reporter
+      {SCR.Telemetry, []},
       # Start LLM Cache and Metrics
       {SCR.LLM.Cache, [enabled: true]},
       {SCR.LLM.Metrics, []},

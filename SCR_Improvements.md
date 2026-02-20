@@ -30,6 +30,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Tool composition/chaining utility (`SCR.Tools.Chain`) with step-level error handling.
 - `[done]` Structured logging baseline with trace metadata in queue/planner/worker/tool/chain flow.
 - `[done]` Web UI task/memory pages now show execution context (`trace_id`, `parent_task_id`, `subtask_id`) for debugging.
+- `[done]` Telemetry event stream + Prometheus endpoint (`/metrics/prometheus`) for queue/tool/health/runtime metrics.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -45,7 +46,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Agent context lifecycle policy: retention + cleanup job in `SCR.AgentContext`.
 - `[done]` Rate limiter maintenance: periodic cleanup of expired ETS buckets + limiter stats API.
 - `[done]` Execution-context propagation: `trace_id`, `parent_task_id`, and `subtask_id` are propagated across planner/worker/tool path.
-- `[planned]` Add telemetry events for queue actions, tool-chain step timing, and tool-rate-limit rejections.
+- `[done]` Add telemetry events for queue actions and tool execution outcomes/duration, with Prometheus export.
 - `[planned]` Add production JSON log profile and OpenTelemetry log/trace export bridge.
 - `[planned]` Promote visual regression from artifact-only to baseline-diff blocking checks after snapshot stabilization.
 

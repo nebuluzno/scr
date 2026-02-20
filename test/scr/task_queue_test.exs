@@ -44,4 +44,30 @@ defmodule SCR.TaskQueueTest do
     assert Enum.map(tasks, & &1.task_id) == ["h", "n"]
     assert 0 == TaskQueue.size(server)
   end
+
+  test "emits telemetry events for enqueue and dequeue", %{server: server} do
+    handler_id = "task-queue-telemetry-#{System.unique_integer([:positive])}"
+    parent = self()
+
+    :ok =
+      :telemetry.attach_many(
+        handler_id,
+        [[:scr, :task_queue, :enqueue], [:scr, :task_queue, :dequeue]],
+        fn event, measurements, metadata, _ ->
+          send(parent, {:telemetry_event, event, measurements, metadata})
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+
+    assert {:ok, _} = TaskQueue.enqueue(%{task_id: "event-1"}, :normal, server)
+    assert {:ok, %{task_id: "event-1"}} = TaskQueue.dequeue(server)
+
+    assert_receive {:telemetry_event, [:scr, :task_queue, :enqueue], %{count: 1},
+                    %{priority: :normal, result: :accepted}}
+
+    assert_receive {:telemetry_event, [:scr, :task_queue, :dequeue], %{count: 1},
+                    %{priority: :normal, result: :ok}}
+  end
 end

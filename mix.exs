@@ -41,7 +41,12 @@ defmodule SCR.MixProject do
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
 
       # PubSub for real-time
-      {:phoenix_pubsub, "~> 2.1"}
+      {:phoenix_pubsub, "~> 2.1"},
+
+      # Telemetry + Prometheus metrics
+      {:telemetry_poller, "~> 1.0"},
+      {:telemetry_metrics, "~> 1.0"},
+      {:telemetry_metrics_prometheus, "~> 1.1"}
     ]
   end
 end

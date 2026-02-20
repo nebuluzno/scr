@@ -10,4 +10,10 @@ defmodule SCRWeb.MetricsController do
       metrics_stats: metrics_stats
     )
   end
+
+  def prometheus(conn, _params) do
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(200, SCR.Telemetry.scrape())
+  end
 end

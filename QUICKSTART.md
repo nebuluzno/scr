@@ -47,6 +47,7 @@ Open [http://localhost:4000](http://localhost:4000)
 6. `Memory`: inspect stored tasks/states and context metadata
 7. `Metrics`: inspect LLM/cache activity
 8. `Tools`: run a manual tool call
+9. `Prometheus`: scrape runtime telemetry from `/metrics/prometheus`
 
 ## 4. Optional: enable local LLM (Ollama)
 ```bash
@@ -118,6 +119,11 @@ ctx =
   })
 
 SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, "b" => 1}, ctx)
+```
+
+### Optional: Prometheus scrape check
+```bash
+curl -s http://localhost:4000/metrics/prometheus | head -n 40
 ```
 
 ### Optional: test tool chaining utility
