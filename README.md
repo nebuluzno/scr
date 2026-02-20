@@ -26,6 +26,12 @@ mix deps.get
 mix compile
 ```
 
+## CI Notes
+- Main CI validates formatting, compile warnings, and tests.
+- Coverage runs in a non-blocking job and uploads `cover/` as an artifact.
+- Optional MCP smoke job runs only on non-PR events when these repo secrets are set:
+  `SCR_MCP_SERVER_NAME`, `SCR_MCP_SERVER_COMMAND`, `SCR_MCP_SERVER_ARGS`, `SCR_MCP_ALLOWED_TOOLS`.
+
 ## Run (CLI)
 
 ### 1. Standard demo

@@ -4,6 +4,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -89,3 +90,51 @@ jobs:
         with:
           name: coverage-report
           path: cover/
+
+  mcp_smoke:
+    name: MCP Smoke (Opt-in)
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event_name != 'pull_request' && secrets.SCR_MCP_SERVER_COMMAND != '' }}
+
+    env:
+      MIX_ENV: dev
+      SCR_MCP_ENABLED: "true"
+      SCR_WORKSPACE_ROOT: ${{ github.workspace }}
+      SCR_MCP_SERVER_NAME: ${{ secrets.SCR_MCP_SERVER_NAME }}
+      SCR_MCP_SERVER_COMMAND: ${{ secrets.SCR_MCP_SERVER_COMMAND }}
+      SCR_MCP_SERVER_ARGS: ${{ secrets.SCR_MCP_SERVER_ARGS }}
+      SCR_MCP_ALLOWED_TOOLS: ${{ secrets.SCR_MCP_ALLOWED_TOOLS }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup BEAM
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.14.5"
+          otp-version: "25.3"
+
+      - name: Setup Node.js (for JS MCP servers)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Restore deps and build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run MCP smoke task
+        run: |
+          SERVER="${SCR_MCP_SERVER_NAME:-filesystem}"
+          mix scr.mcp.smoke --server "$SERVER" --tool list_directory --args-json '{"path":"."}'
