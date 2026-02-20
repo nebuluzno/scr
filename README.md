@@ -1,4 +1,5 @@
 # Supervised Cognitive Runtime (SCR)
+[![CI](https://github.com/nebuluzno/scr/actions/workflows/ci.yml/badge.svg)](https://github.com/nebuluzno/scr/actions/workflows/ci.yml)
 
 SCR is a supervised, fault-tolerant multi-agent runtime built with Elixir/OTP.
 
