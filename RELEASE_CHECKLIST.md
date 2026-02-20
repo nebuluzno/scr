@@ -1,8 +1,8 @@
 # SCR Release Checklist
 
 This checklist prepares the next release cut.  
-Current docs version label: `v0.2.0-alpha`  
-Suggested next target: `v0.2.1-alpha`
+Current docs version label: `v0.3.0-alpha`  
+Suggested next target: `v0.3.1-alpha`
 
 ## 1. Pre-release validation
 1. Run:
@@ -40,7 +40,7 @@ mix scr.mcp.smoke
 1. Commit final version updates.
 2. Create annotated tag:
 ```bash
-git tag -a v0.2.0-alpha -m "SCR v0.2.0-alpha"
+git tag -a v0.3.0-alpha -m "SCR v0.3.0-alpha"
 ```
 3. Push branch and tags:
 ```bash

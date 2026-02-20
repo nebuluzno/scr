@@ -21,9 +21,13 @@
 ```
 SCR.Supervisor.Tree (Supervisor)
 ├── SCR.PubSub (Phoenix.PubSub)
+├── SCR.ClusterSupervisor (Cluster.Supervisor, optional)
 ├── SCR.LLM.Cache (GenServer)
 ├── SCR.LLM.Metrics (GenServer)
 ├── SCR.Tools.Registry (GenServer)
+├── SCR.Distributed.SpecRegistry (GenServer)
+├── SCR.Distributed.HandoffManager (GenServer)
+├── SCR.Distributed.PeerManager (GenServer)
 ├── SCRWeb.Endpoint (Phoenix.Endpoint)
 └── SCR.Supervisor (DynamicSupervisor)
     ├── MemoryAgent (permanent)
@@ -70,6 +74,10 @@ All inter-agent communication uses `SCR.Message` struct:
 - `SCR.Agent` - Base GenServer behaviour for all agents
 - `SCR.Supervisor` - DynamicSupervisor for agent lifecycle
 - `SCR.Message` - Message protocol definition
+- `SCR.Distributed` - Distributed node/agent RPC helpers
+- `SCR.Distributed.SpecRegistry` - Cross-node agent spec replication
+- `SCR.Distributed.HandoffManager` - Node-down handoff orchestrator
+- `SCR.Distributed.PeerManager` - Peer connectivity manager
 
 ### LLM Integration (`lib/scr/llm/`)
 
@@ -104,6 +112,16 @@ OPENAI_MODEL=gpt-4o-mini              # OpenAI model
 ANTHROPIC_API_KEY=sk-ant-...          # Anthropic API key
 ANTHROPIC_MODEL=claude-3-5-sonnet-latest
 SCR_MEMORY_PATH=tmp/memory            # DETS persistence path (optional)
+SCR_DISTRIBUTED_ENABLED=true          # Enable distributed peer manager
+SCR_DISTRIBUTED_PEERS=scr2@host       # Comma-separated node list
+SCR_DISTRIBUTED_RECONNECT_MS=5000
+SCR_DISTRIBUTED_MAX_RECONNECT_MS=60000
+SCR_DISTRIBUTED_BACKOFF_MULTIPLIER=2.0
+SCR_DISTRIBUTED_RPC_TIMEOUT_MS=5000
+SCR_DISTRIBUTED_FLAP_WINDOW_MS=60000
+SCR_DISTRIBUTED_FLAP_THRESHOLD=3
+SCR_DISTRIBUTED_QUARANTINE_MS=120000
+RELEASE_COOKIE=replace-with-strong-cookie
 ```
 
 ### Config Files
@@ -272,7 +290,9 @@ Key dependencies from `mix.exs`:
 
 See `SCR_Improvements.md` for planned features:
 
-- Distributed agent support
+- Distributed placement strategy v2
+- Queue durability beyond memory
+- Provider failover policy
 
 ## Related Documentation
 
@@ -285,6 +305,6 @@ See `SCR_Improvements.md` for planned features:
 
 ## Version
 
-Current version: **v0.2.0-alpha**
+Current version: **v0.3.0-alpha**
 
 This is an early alpha release for feedback and testing. Expect breaking changes.

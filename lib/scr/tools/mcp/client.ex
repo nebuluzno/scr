@@ -33,7 +33,7 @@ defmodule SCR.Tools.MCP.Client do
       init_params = %{
         "protocolVersion" => "2024-11-05",
         "capabilities" => %{},
-        "clientInfo" => %{"name" => "scr", "version" => "0.2.0-alpha"}
+        "clientInfo" => %{"name" => "scr", "version" => "0.3.0-alpha"}
       }
 
       case rpc(conn, "initialize", init_params) do

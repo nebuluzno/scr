@@ -124,6 +124,62 @@ Optional tool call:
 mix scr.mcp.smoke --server filesystem --tool list_directory --args-json '{"path":"."}'
 ```
 
+## 4d. Optional: distributed runtime smoke test
+Start a named node:
+```bash
+export RELEASE_COOKIE="replace-with-strong-cookie"
+iex --sname scr1 --cookie "$RELEASE_COOKIE" -S mix
+```
+
+In IEx:
+```elixir
+Application.put_env(:scr, :distributed,
+  enabled: true,
+  cluster_registry: true,
+  handoff_enabled: true,
+  watchdog_enabled: true,
+  peers: [:"scr2@127.0.0.1"],
+  reconnect_interval_ms: 5_000,
+  max_reconnect_interval_ms: 60_000,
+  backoff_multiplier: 2.0,
+  flap_window_ms: 60_000,
+  flap_threshold: 3,
+  quarantine_ms: 120_000,
+  rpc_timeout_ms: 5_000
+)
+
+Application.put_env(:libcluster, :topologies,
+  scr_epmd: [
+    strategy: Cluster.Strategy.Epmd,
+    config: [hosts: [:"scr2@127.0.0.1"]]
+  ]
+)
+
+SCR.Distributed.status()
+SCR.Distributed.connect_peers()
+SCR.Distributed.list_cluster_agents()
+SCR.Distributed.pick_start_node()
+SCR.Distributed.check_cluster_health()
+```
+
+Start a second node in another shell:
+```bash
+export RELEASE_COOKIE="replace-with-strong-cookie"
+iex --sname scr2 --cookie "$RELEASE_COOKIE" -S mix
+```
+
+Optional manual handoff test from `scr1`:
+```elixir
+SCR.Distributed.start_agent_on(Node.self(), "handoff_demo_1", :worker, SCR.Agents.WorkerAgent, %{agent_id: "handoff_demo_1"})
+SCR.Distributed.handoff_agent("handoff_demo_1", Node.list() |> List.first())
+```
+
+Optional quarantine simulation:
+```elixir
+SCR.Distributed.NodeWatchdog.quarantine(Node.list() |> List.first(), 60_000)
+SCR.Distributed.status()
+```
+
 ## 5. Useful IEx checks
 ```bash
 iex -S mix
@@ -140,6 +196,7 @@ SCR.Agent.health_check("planner_1")
 SCR.Tools.RateLimiter.stats()
 SCR.AgentContext.stats()
 SCR.AgentContext.list() |> Enum.take(3)
+SCR.Distributed.status()
 ```
 
 ### Optional: test execution-context propagation

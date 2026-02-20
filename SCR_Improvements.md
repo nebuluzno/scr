@@ -36,13 +36,14 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Added one-command observability stack (`docker-compose.observability.yml`) with Prometheus/Alertmanager/Grafana provisioning.
 - `[done]` Added `Makefile` observability targets (`obs-up`, `obs-down`, `obs-logs`, `obs-reset`) for faster operations.
 - `[done]` Visual regression baseline-diff checks are now blocking in CI using Playwright snapshots.
+- `[done]` Distributed hardening baseline: secure cookie docs, peer reconnect backoff controls, and remote health-check APIs.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[done]` OpenAI adapter support
 - `[done]` Anthropic adapter support
 - `[done]` Streaming LLM responses
 - `[done]` Persistent storage backend (DETS-backed MemoryAgent option)
-- `[planned]` Distributed agent support
+- `[done]` Distributed agent support baseline (`libcluster` discovery + spec registry + node-down handoff manager + cross-node RPC APIs)
 - `[done]` Enhanced tool sandboxing
 
 ## Additional Suggestions (Post-Implementation)
@@ -59,7 +60,8 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[idea]` Add `:telemetry` event stream + `TelemetryMetricsPrometheus` endpoint for queue depth, tool latency, and supervisor restarts, with per-agent labels.
 - `[idea]` Introduce `PartitionSupervisor` for high-cardinality worker pools and sharded `AgentContext` ownership to reduce single-process contention.
 - `[idea]` Add optional durable queue backend (`:disk_log` or DETS + replay) to restore queued work across node restarts while keeping current in-memory fast path.
-- `[idea]` Add distributed node mode (`libcluster` + Horde/Swarm-style registry handoff) for cross-node agent spawning and failover experiments.
+- `[done]` Add distributed node mode baseline (`libcluster` + spec-registry-based handoff) for cross-node agent spawning and failover experiments.
+- `[done]` Add distributed node watchdog (`Node.monitor/2`) with unhealthy-node quarantine to avoid scheduling new work on flapping peers.
 - `[idea]` Add `:persistent_term` backed static config cache for hot-path policy/rate-limit lookups, with safe invalidation on config reload.
 - `[done]` Add alert rule templates (Prometheus/Alertmanager) for MCP circuit-open spikes, queue saturation, and sustained rate-limit rejection bursts.
 
@@ -70,7 +72,7 @@ This document outlines potential improvements and optimizations for the Supervis
   3. MCP + safety/rate limits + context debug
   4. Observability stack bring-up + verification
   5. Visual regression baseline-diff workflow
-- `[planned]` Expand tutorials with custom-tool authoring and full multi-agent debugging labs.
+- `[done]` Expanded tutorials with custom-tool authoring and full multi-agent debugging labs.
 - `[done]` Version update prep checklist added (`RELEASE_CHECKLIST.md`) including validation, version alignment, release notes, and tagging.
 
 ## Current Baseline Commands
@@ -628,7 +630,7 @@ end
 
 ## Recommended Next Steps
 
-1. **Expand tutorial labs** - Cover custom tool authoring and full multi-agent debugging flow.
-2. **Distributed agent support** - Enable cross-node runtime experiments.
-3. **Queue durability beyond memory** - Optional replayable queue backend for restart resilience.
-4. **Provider failover policy** - Add runtime fallback/health-based provider switching across Ollama/OpenAI/Anthropic.
+1. **Distributed placement strategy v2** - Add load/health-weighted node scoring (queue depth + latency + failure rate) beyond simple healthy-node filtering.
+2. **Queue durability beyond memory** - Optional replayable queue backend for restart resilience.
+3. **Provider failover policy** - Add runtime fallback/health-based provider switching across Ollama/OpenAI/Anthropic.
+4. **Distributed placement strategy** - Add load/health-aware agent placement for `start_agent_on` and automatic handoff targets.

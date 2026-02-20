@@ -4,7 +4,7 @@ defmodule SCR.MixProject do
   def project do
     [
       app: :scr,
-      version: "0.2.0-alpha",
+      version: "0.3.0-alpha",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps()
@@ -51,7 +51,10 @@ defmodule SCR.MixProject do
       # OpenTelemetry export bridge
       {:opentelemetry_api, "~> 1.3"},
       {:opentelemetry, "~> 1.3"},
-      {:opentelemetry_exporter, "~> 1.8"}
+      {:opentelemetry_exporter, "~> 1.8"},
+
+      # Distributed node discovery
+      {:libcluster, "~> 3.4"}
     ]
   end
 end

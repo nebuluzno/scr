@@ -99,17 +99,23 @@ defmodule SCR.Agent do
 
     case module.init(init_arg) do
       {:ok, agent_state} ->
-        full_state = Map.merge(initial_state, %{agent_state: agent_state, status: :running})
-        schedule_heartbeat()
+        case register_cluster_name(agent_id) do
+          :ok ->
+            full_state = Map.merge(initial_state, %{agent_state: agent_state, status: :running})
+            schedule_heartbeat()
 
-        # Broadcast agent started
-        broadcast_agent_event(:agent_started, %{
-          agent_id: agent_id,
-          agent_type: agent_type,
-          status: :running
-        })
+            # Broadcast agent started
+            broadcast_agent_event(:agent_started, %{
+              agent_id: agent_id,
+              agent_type: agent_type,
+              status: :running
+            })
 
-        {:ok, full_state}
+            {:ok, full_state}
+
+          {:error, reason} ->
+            {:stop, reason}
+        end
 
       {:stop, reason} ->
         {:stop, reason}
@@ -224,5 +230,20 @@ defmodule SCR.Agent do
   defp schedule_heartbeat do
     # Heartbeat every 5 seconds
     Process.send_after(self(), :heartbeat, 5000)
+  end
+
+  defp register_cluster_name(agent_id) do
+    cfg = Application.get_env(:scr, :distributed, [])
+    distributed_enabled = Keyword.get(cfg, :enabled, false)
+    cluster_registry = Keyword.get(cfg, :cluster_registry, true)
+
+    if distributed_enabled and cluster_registry and Node.alive?() do
+      case :global.register_name({:scr_agent, agent_id}, self()) do
+        :yes -> :ok
+        :no -> {:error, :duplicate_agent_id}
+      end
+    else
+      :ok
+    end
   end
 end

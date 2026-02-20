@@ -41,6 +41,7 @@ defmodule SCR.Supervisor do
     case DynamicSupervisor.start_child(__MODULE__, spec) do
       {:ok, pid} ->
         :ets.insert(@agent_specs_table, {agent_id, agent_type, module, init_arg})
+        sync_spec_upsert(agent_id, agent_type, module, init_arg, Node.self())
         IO.puts("✓ Started #{agent_type} agent: #{agent_id}")
         {:ok, pid}
 
@@ -58,14 +59,20 @@ defmodule SCR.Supervisor do
   Stop an agent.
   """
   def stop_agent(agent_id) do
-    case Registry.lookup(SCR.AgentRegistry, agent_id) do
-      [{pid, _}] ->
-        Agent.stop(agent_id)
-        DynamicSupervisor.terminate_child(__MODULE__, pid)
-        IO.puts("✓ Stopped agent: #{agent_id}")
-        :ok
+    case get_agent_pid(agent_id) do
+      {:ok, pid} ->
+        if node(pid) == Node.self() do
+          Agent.stop(agent_id)
+          safe_terminate_child(pid)
+          :ets.delete(@agent_specs_table, agent_id)
+          sync_spec_remove(agent_id)
+          IO.puts("✓ Stopped agent: #{agent_id}")
+          :ok
+        else
+          :rpc.call(node(pid), __MODULE__, :stop_agent, [agent_id])
+        end
 
-      [] ->
+      {:error, :not_found} ->
         {:error, :not_found}
     end
   end
@@ -75,8 +82,27 @@ defmodule SCR.Supervisor do
   """
   def get_agent_pid(agent_id) do
     case Registry.lookup(SCR.AgentRegistry, agent_id) do
-      [{pid, _}] -> {:ok, pid}
-      [] -> {:error, :not_found}
+      [{pid, _}] ->
+        {:ok, pid}
+
+      [] ->
+        case :global.whereis_name({:scr_agent, agent_id}) do
+          pid when is_pid(pid) -> {:ok, pid}
+          _ -> {:error, :not_found}
+        end
+    end
+  end
+
+  @doc """
+  Get the start spec of an agent.
+  """
+  def get_agent_spec(agent_id) do
+    case :ets.lookup(@agent_specs_table, agent_id) do
+      [{^agent_id, agent_type, module, init_arg}] ->
+        {:ok, %{agent_type: agent_type, module: module, init_arg: init_arg}}
+
+      [] ->
+        {:error, :not_found}
     end
   end
 
@@ -100,8 +126,13 @@ defmodule SCR.Supervisor do
   """
   def send_to_agent(agent_id, message) do
     case get_agent_pid(agent_id) do
-      {:ok, _pid} ->
-        Agent.send_message(agent_id, message)
+      {:ok, pid} ->
+        if node(pid) == Node.self() do
+          Agent.send_message(agent_id, message)
+        else
+          GenServer.cast(pid, {:deliver_message, message})
+        end
+
         :ok
 
       {:error, :not_found} ->
@@ -114,8 +145,12 @@ defmodule SCR.Supervisor do
   """
   def get_agent_status(agent_id) do
     case get_agent_pid(agent_id) do
-      {:ok, _pid} ->
-        {:ok, Agent.get_status(agent_id)}
+      {:ok, pid} ->
+        if node(pid) == Node.self() do
+          {:ok, Agent.get_status(agent_id)}
+        else
+          {:ok, GenServer.call(pid, :get_status)}
+        end
 
       {:error, :not_found} ->
         {:error, :not_found}
@@ -127,8 +162,13 @@ defmodule SCR.Supervisor do
   """
   def crash_agent(agent_id) do
     case get_agent_pid(agent_id) do
-      {:ok, _pid} ->
-        Agent.crash(agent_id)
+      {:ok, pid} ->
+        if node(pid) == Node.self() do
+          Agent.crash(agent_id)
+        else
+          GenServer.cast(pid, :simulate_crash)
+        end
+
         :ok
 
       {:error, :not_found} ->
@@ -171,5 +211,28 @@ defmodule SCR.Supervisor do
     if :ets.whereis(@agent_specs_table) == :undefined do
       :ets.new(@agent_specs_table, [:set, :named_table, :public, read_concurrency: true])
     end
+  end
+
+  defp sync_spec_upsert(agent_id, agent_type, module, init_arg, owner_node) do
+    if Process.whereis(SCR.Distributed.SpecRegistry) do
+      SCR.Distributed.SpecRegistry.upsert(agent_id, agent_type, module, init_arg, owner_node)
+    end
+  end
+
+  defp sync_spec_remove(agent_id) do
+    if Process.whereis(SCR.Distributed.SpecRegistry) do
+      SCR.Distributed.SpecRegistry.remove(agent_id)
+    end
+  end
+
+  defp safe_terminate_child(pid) do
+    case DynamicSupervisor.terminate_child(__MODULE__, pid) do
+      :ok -> :ok
+      {:error, :not_found} -> :ok
+      {:error, :noproc} -> :ok
+      {:error, _} -> :ok
+    end
+  catch
+    :exit, _ -> :ok
   end
 end

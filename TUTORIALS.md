@@ -322,7 +322,191 @@ SCR.LLM.Client.chat_stream([%{role: "user", content: "Stream a short summary"}],
 - Ping and chat calls succeed.
 - Stream callback receives incremental chunks.
 
-## Next Tutorials (Planned)
-- Build a custom native tool and register it safely.
-- Add an MCP server profile and strict allowlist policy.
-- Run a multi-agent task and debug it with trace IDs end-to-end.
+## Tutorial 9: Build a Custom Native Tool
+
+### Goal
+Create, register, and safely execute a custom tool end-to-end.
+
+### Steps
+1. Create tool module at `lib/scr/tools/word_count.ex`:
+```elixir
+defmodule SCR.Tools.WordCount do
+  @behaviour SCR.Tools.Behaviour
+
+  def name, do: "word_count"
+
+  def description, do: "Count words in a text payload."
+
+  def parameters_schema do
+    %{
+      type: "object",
+      properties: %{
+        text: %{type: "string", description: "Text to analyze"}
+      },
+      required: ["text"]
+    }
+  end
+
+  def execute(%{"text" => text}) when is_binary(text) do
+    count =
+      text
+      |> String.split(~r/\s+/, trim: true)
+      |> length()
+
+    {:ok, %{words: count}}
+  end
+
+  def execute(_), do: {:error, "text is required"}
+
+  def to_openai_format,
+    do: SCR.Tools.Behaviour.build_function_format(name(), description(), parameters_schema())
+
+  def on_register, do: :ok
+  def on_unregister, do: :ok
+end
+```
+2. Compile:
+```bash
+mix compile
+```
+3. Register in IEx:
+```bash
+iex -S mix
+```
+```elixir
+SCR.Tools.Registry.register_tool(SCR.Tools.WordCount)
+SCR.Tools.Registry.list_tools()
+```
+4. Execute with explicit context:
+```elixir
+ctx =
+  SCR.Tools.ExecutionContext.new(%{
+    mode: :strict,
+    agent_id: "worker_custom",
+    task_id: "task_custom_1",
+    trace_id: "trace_custom_1"
+  })
+
+SCR.Tools.Registry.execute_tool("word_count", %{"text" => "one two three"}, ctx)
+```
+5. Verify tool definition is exposed:
+```elixir
+SCR.Tools.Registry.get_tool_definitions(ctx)
+|> Enum.find(fn d -> get_in(d, [:function, :name]) == "word_count" end)
+```
+
+### Expected Results
+- Tool registers successfully.
+- Execution returns normalized payload with metadata.
+- Tool appears in model tool definitions.
+
+## Tutorial 10: Multi-Agent Trace Debug Lab
+
+### Goal
+Run a task through planner/worker path and trace execution context across queue, tools, logs, and memory views.
+
+### Steps
+1. Start server:
+```bash
+mix phx.server
+```
+2. Open `/tasks/new` and submit:
+`Investigate fault-tolerant agent runtimes and summarize tradeoffs`
+3. Open `/tasks` and note:
+- `task_id`
+- `trace_id`
+- `parent_task_id` / `subtask_id`
+4. Open `/` dashboard and inspect queue behavior while task runs.
+5. Open `/tools` and execute a calculator call with matching context:
+```elixir
+ctx =
+  SCR.Tools.ExecutionContext.new(%{
+    mode: :strict,
+    agent_id: "worker_debug",
+    task_id: "<task_id>",
+    parent_task_id: "<task_id>",
+    subtask_id: "manual_probe_1",
+    trace_id: "<trace_id>"
+  })
+
+SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 2, "b" => 2}, ctx)
+```
+6. Open `/memory` and verify context fields are visible on stored task/result entries.
+7. In shell logs, filter by trace:
+```bash
+rg "<trace_id>" /tmp/scr.log
+```
+8. (Optional) Check metrics:
+```bash
+curl -s http://localhost:4000/metrics/prometheus | rg "scr_tools_execute_total|scr_task_queue"
+```
+
+### Expected Results
+- Same `trace_id` can be followed across UI pages and runtime logs.
+- Tool metadata includes matching task/subtask context.
+- Queue + tool telemetry lines correlate with task lifecycle.
+
+## Tutorial 11: Distributed Hardening Lab (Cookie + Backoff + Remote Health)
+
+### Goal
+Run two local named nodes with a shared cookie, verify peer reconnect backoff, and run remote agent health checks.
+
+### Steps
+1. In shell A:
+```bash
+export RELEASE_COOKIE="replace-with-strong-cookie"
+iex --sname scr1 --cookie "$RELEASE_COOKIE" -S mix
+```
+2. In shell B:
+```bash
+export RELEASE_COOKIE="replace-with-strong-cookie"
+iex --sname scr2 --cookie "$RELEASE_COOKIE" -S mix
+```
+3. In shell A, enable distributed config:
+```elixir
+Application.put_env(:scr, :distributed,
+  enabled: true,
+  cluster_registry: true,
+  handoff_enabled: true,
+  peers: [:"scr2@127.0.0.1"],
+  reconnect_interval_ms: 5_000,
+  max_reconnect_interval_ms: 60_000,
+  backoff_multiplier: 2.0,
+  rpc_timeout_ms: 5_000
+)
+
+Application.put_env(:libcluster, :topologies,
+  scr_epmd: [
+    strategy: Cluster.Strategy.Epmd,
+    config: [hosts: [:"scr2@127.0.0.1"]]
+  ]
+)
+```
+4. Trigger and inspect connectivity:
+```elixir
+SCR.Distributed.connect_peers()
+SCR.Distributed.status()
+```
+5. Start an agent on node `scr2` from shell A:
+```elixir
+remote_node = Node.list() |> List.first()
+
+SCR.Distributed.start_agent_on(remote_node,
+  "worker_remote_1",
+  :worker,
+  SCR.Agents.WorkerAgent,
+  %{agent_id: "worker_remote_1"}
+)
+```
+6. Run remote health checks:
+```elixir
+SCR.Distributed.check_agent_health_on(remote_node, "worker_remote_1")
+SCR.Distributed.check_cluster_health()
+SCR.Distributed.handoff_agent("worker_remote_1", Node.self())
+```
+
+### Expected Results
+- Nodes connect only when cookie and naming match.
+- Peer status exposes reconnect interval and failure counters.
+- Remote health checks return `:ok` for active agents and structured errors for missing ones.
+- Manual handoff moves the agent to the target node while preserving its registered id.

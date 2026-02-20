@@ -11,6 +11,7 @@ It provides:
 - LLM execution (Ollama/OpenAI/Anthropic providers, mock provider for tests)
 - Streaming completions support (prompt and chat streams)
 - Unified tool execution (native tools + MCP integration path)
+- Distributed runtime baseline (libcluster discovery + spec-registry handoff + cross-node RPC)
 - Tool composition helper for pipelines (`SCR.Tools.Chain`)
 - Tool rate limiting guardrail (`SCR.Tools.RateLimiter`)
 - Execution context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across tool calls
@@ -23,7 +24,7 @@ It provides:
 - Full setup + first run: `QUICKSTART.md`
 - Step-by-step tutorials: `TUTORIALS.md`
 - Release prep checklist: `RELEASE_CHECKLIST.md`
-- Latest release notes: `RELEASE_NOTES_v0.2.0-alpha.md`
+- Latest release notes: `RELEASE_NOTES_v0.3.0-alpha.md`
 - Use-case walkthroughs: `SCR_UseCases.md`
 - LLM architecture details: `SCR_LLM_Documentation.txt`
 - Improvement backlog: `SCR_Improvements.md`
@@ -185,6 +186,65 @@ SCR.Tools.Chain.execute(
 # => {:ok, %{output: 50, steps: [...]}}
 ```
 
+## Distributed Runtime
+SCR includes:
+- Optional node discovery via `libcluster` (`Cluster.Strategy.Epmd`)
+- Distributed agent spec replication (`SCR.Distributed.SpecRegistry`)
+- Node-down handoff manager (`SCR.Distributed.HandoffManager`)
+- Node watchdog/quarantine for flapping peers (`SCR.Distributed.NodeWatchdog`)
+- Cross-node agent APIs (`SCR.Distributed`)
+
+Core distributed API:
+- `SCR.Distributed.status/0`
+- `SCR.Distributed.connect_peers/0`
+- `SCR.Distributed.list_cluster_agents/0`
+- `SCR.Distributed.start_agent_on/6`
+- `SCR.Distributed.start_agent/5` (watchdog-aware placement)
+- `SCR.Distributed.pick_start_node/1`
+- `SCR.Distributed.handoff_agent/3`
+- `SCR.Distributed.check_agent_health_on/3`
+- `SCR.Distributed.check_cluster_health/1`
+
+Enable via config:
+```elixir
+config :scr, :distributed,
+  enabled: true,
+  cluster_registry: true,
+  handoff_enabled: true,
+  watchdog_enabled: true,
+  peers: [:"scr2@127.0.0.1"],
+  reconnect_interval_ms: 5_000,
+  max_reconnect_interval_ms: 60_000,
+  backoff_multiplier: 2.0,
+  flap_window_ms: 60_000,
+  flap_threshold: 3,
+  quarantine_ms: 120_000,
+  rpc_timeout_ms: 5_000
+
+config :libcluster,
+  topologies: [
+    scr_epmd: [
+      strategy: Cluster.Strategy.Epmd,
+      config: [hosts: [:"scr2@127.0.0.1", :"scr3@127.0.0.1"]]
+    ]
+  ]
+```
+
+Quick check from IEx:
+```elixir
+SCR.Distributed.status()
+SCR.Distributed.list_cluster_agents()
+SCR.Distributed.pick_start_node()
+SCR.Distributed.start_agent("worker_auto_1", :worker, SCR.Agents.WorkerAgent, %{agent_id: "worker_auto_1"})
+SCR.Distributed.check_cluster_health()
+SCR.Distributed.handoff_agent("worker_1", :"scr2@127.0.0.1")
+```
+
+Security note:
+- Use a strong shared Erlang cookie for all cluster nodes.
+- Avoid exposing Erlang distribution ports publicly without network controls.
+- Quarantined nodes are automatically excluded from auto-placement and handoff targets.
+
 ## Development Commands
 ```bash
 mix test
@@ -243,6 +303,23 @@ config :logger, :console,
 
 config :scr, SCR.Observability.OTelBridge,
   enabled: false
+
+config :scr, :distributed,
+  enabled: false,
+  cluster_registry: true,
+  handoff_enabled: true,
+  watchdog_enabled: true,
+  peers: [],
+  reconnect_interval_ms: 5_000,
+  max_reconnect_interval_ms: 60_000,
+  backoff_multiplier: 2.0,
+  flap_window_ms: 60_000,
+  flap_threshold: 3,
+  quarantine_ms: 120_000,
+  rpc_timeout_ms: 5_000
+
+config :libcluster,
+  topologies: []
 ```
 
 Production observability toggles:
@@ -251,6 +328,20 @@ export SCR_LOG_FORMAT=json
 export SCR_OTEL_ENABLED=true
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 export OTEL_SERVICE_NAME=scr-runtime
+```
+
+Production distributed toggles:
+```bash
+export SCR_DISTRIBUTED_ENABLED=true
+export SCR_DISTRIBUTED_PEERS="scr2@127.0.0.1,scr3@127.0.0.1"
+export SCR_DISTRIBUTED_RECONNECT_MS=5000
+export SCR_DISTRIBUTED_MAX_RECONNECT_MS=60000
+export SCR_DISTRIBUTED_BACKOFF_MULTIPLIER=2.0
+export SCR_DISTRIBUTED_FLAP_WINDOW_MS=60000
+export SCR_DISTRIBUTED_FLAP_THRESHOLD=3
+export SCR_DISTRIBUTED_QUARANTINE_MS=120000
+export SCR_DISTRIBUTED_RPC_TIMEOUT_MS=5000
+export RELEASE_COOKIE="replace-with-strong-cookie"
 ```
 
 Quick IEx checks:
@@ -391,4 +482,4 @@ mix scr.mcp.smoke --server filesystem --tool list_directory --args-json '{"path"
 ```
 
 ## Current Version
-`v0.2.0-alpha`
+`v0.3.0-alpha`

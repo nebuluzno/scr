@@ -76,6 +76,23 @@ config :scr, SCR.Telemetry, poller_interval_ms: 10_000
 
 config :scr, SCR.Observability.OTelBridge, enabled: false
 
+config :scr, :distributed,
+  enabled: false,
+  cluster_registry: true,
+  handoff_enabled: true,
+  watchdog_enabled: true,
+  peers: [],
+  reconnect_interval_ms: 5_000,
+  max_reconnect_interval_ms: 60_000,
+  backoff_multiplier: 2.0,
+  flap_window_ms: 60_000,
+  flap_threshold: 3,
+  quarantine_ms: 120_000,
+  rpc_timeout_ms: 5_000
+
+config :libcluster,
+  topologies: []
+
 # Import environment-specific config
 if config_env() == :dev do
   import_config "dev.exs"

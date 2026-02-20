@@ -3,6 +3,15 @@ import Config
 
 log_format = System.get_env("SCR_LOG_FORMAT", "text")
 otel_enabled = System.get_env("SCR_OTEL_ENABLED", "false") == "true"
+distributed_enabled = System.get_env("SCR_DISTRIBUTED_ENABLED", "false") == "true"
+distributed_peers = System.get_env("SCR_DISTRIBUTED_PEERS", "")
+
+distributed_peer_hosts =
+  distributed_peers
+  |> String.split(",", trim: true)
+  |> Enum.map(&String.trim/1)
+  |> Enum.reject(&(&1 == ""))
+  |> Enum.map(&String.to_atom/1)
 
 # LLM configuration for production
 # Override these with environment variables in production!
@@ -32,6 +41,35 @@ if log_format == "json" do
 end
 
 config :scr, SCR.Observability.OTelBridge, enabled: otel_enabled
+
+config :scr, :distributed,
+  enabled: distributed_enabled,
+  cluster_registry: true,
+  handoff_enabled: true,
+  watchdog_enabled: true,
+  peers: distributed_peers,
+  reconnect_interval_ms:
+    String.to_integer(System.get_env("SCR_DISTRIBUTED_RECONNECT_MS", "5000")),
+  max_reconnect_interval_ms:
+    String.to_integer(System.get_env("SCR_DISTRIBUTED_MAX_RECONNECT_MS", "60000")),
+  backoff_multiplier:
+    String.to_float(System.get_env("SCR_DISTRIBUTED_BACKOFF_MULTIPLIER", "2.0")),
+  flap_window_ms: String.to_integer(System.get_env("SCR_DISTRIBUTED_FLAP_WINDOW_MS", "60000")),
+  flap_threshold: String.to_integer(System.get_env("SCR_DISTRIBUTED_FLAP_THRESHOLD", "3")),
+  quarantine_ms: String.to_integer(System.get_env("SCR_DISTRIBUTED_QUARANTINE_MS", "120000")),
+  rpc_timeout_ms: String.to_integer(System.get_env("SCR_DISTRIBUTED_RPC_TIMEOUT_MS", "5000"))
+
+config :libcluster,
+  topologies: if(distributed_enabled and distributed_peer_hosts != []) do
+  [
+    scr_epmd: [
+      strategy: Cluster.Strategy.Epmd,
+      config: [hosts: distributed_peer_hosts]
+    ]
+  ]
+else
+  []
+end
 
 if otel_enabled do
   config :opentelemetry,
