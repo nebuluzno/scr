@@ -44,11 +44,11 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Execution-context propagation: `trace_id`, `parent_task_id`, and `subtask_id` are propagated across planner/worker/tool path.
 
 ## Tutorial Track (Next Docs Phase)
-- `[planned]` Create step-by-step tutorials once core runtime is stable:
-  1. Getting started flow (CLI + Web UI)
-  2. Tool safety modes (strict/demo) and rate limits
-  3. MCP integration walkthrough (filesystem + one API server)
-  4. Debugging with queue stats, health probes, and trace IDs
+- `[done]` Initial step-by-step tutorials in `TUTORIALS.md`:
+  1. Getting started flow (CLI + runtime checks)
+  2. Web UI queue controls
+  3. MCP + safety/rate limits + context debug
+- `[planned]` Expand tutorials with custom-tool authoring and full multi-agent debugging labs.
 
 ## Current Baseline Commands
 

@@ -16,6 +16,7 @@ It provides:
 
 ## Quick Links
 - Full setup + first run: `QUICKSTART.md`
+- Step-by-step tutorials: `TUTORIALS.md`
 - Use-case walkthroughs: `SCR_UseCases.md`
 - LLM architecture details: `SCR_LLM_Documentation.txt`
 - Improvement backlog: `SCR_Improvements.md`

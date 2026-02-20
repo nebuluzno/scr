@@ -2,6 +2,8 @@
 
 This guide gets you from clone to running both CLI and Web UI in a few minutes.
 
+For detailed guided walkthroughs, see `TUTORIALS.md`.
+
 ## 1. Install
 ```bash
 mix deps.get
