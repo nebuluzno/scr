@@ -42,10 +42,11 @@ Open [http://localhost:4000](http://localhost:4000)
 1. Dashboard: verify active runtime stats
 2. Queue Control card: test pause/resume and clear/drain actions
 3. `New Task`: submit a task
-4. `Agents`: watch active agents
-5. `Memory`: inspect stored tasks/states
-6. `Metrics`: inspect LLM/cache activity
-7. `Tools`: run a manual tool call
+4. `Tasks`: inspect task status + execution context fields (`trace_id`, parent/subtask IDs)
+5. `Agents`: watch active agents
+6. `Memory`: inspect stored tasks/states and context metadata
+7. `Metrics`: inspect LLM/cache activity
+8. `Tools`: run a manual tool call
 
 ## 4. Optional: enable local LLM (Ollama)
 ```bash

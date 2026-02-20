@@ -35,13 +35,16 @@
               <div class="memory-item">
                 <div class="memory-header">
                   <span class="memory-id"><%= task.task_id %></span>
-                  <span class="memory-type badge badge-info"><%= Map.get(task, :type, "task") %></span>
+                  <span class={"badge " <> status_badge_class(task.status)}><%= task.status %></span>
                 </div>
                 <div class="memory-content"><%= String.slice(to_string(task.description), 0, 100) %><%= if String.length(to_string(task.description)) > 100, do: "..." %></div>
-                <%= if Map.get(task, :result) do %>
-                  <div class="memory-result">
-                    <strong>Result:</strong> <%= String.slice(inspect(task.result), 0, 150) %>...
-                  </div>
+                <div class="memory-meta">type: <%= task.type %></div>
+                <div class="memory-meta">trace_id: <%= task.trace_id || "n/a" %></div>
+                <div class="memory-meta">parent_task_id: <%= task.parent_task_id || "n/a" %></div>
+                <div class="memory-meta">subtask_id: <%= task.subtask_id || "n/a" %></div>
+                <div class="memory-meta">updated_at: <%= format_datetime(task.updated_at) %></div>
+                <%= if task.has_result do %>
+                  <div class="memory-result"><strong>Result:</strong> available</div>
                 <% end %>
               </div>
             <% end %>
@@ -63,16 +66,14 @@
           </div>
         <% else %>
           <div class="memory-list">
-            <%= for {agent_id, state} <- @agents do %>
+            <%= for agent <- @agents do %>
               <div class="memory-item">
                 <div class="memory-header">
-                  <span class="memory-id"><%= agent_id %></span>
-                  <span class="badge badge-info">
-                    <%= Map.get(state, :status, "unknown") %>
-                  </span>
+                  <span class="memory-id"><%= agent.agent_id %></span>
+                  <span class={"badge " <> status_badge_class(agent.status)}><%= agent.status %></span>
                 </div>
                 <div class="memory-meta">
-                  <span>Type: <%= Map.get(state, :agent_type, "unknown") %></span>
+                  <span>Type: <%= agent.agent_type %></span>
                 </div>
               </div>
             <% end %>
@@ -104,4 +105,3 @@
     <a href="/" class="btn btn-secondary">← Back to Dashboard</a>
   </div>
 </div>
-

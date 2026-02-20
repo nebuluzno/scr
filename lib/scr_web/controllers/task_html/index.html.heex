@@ -11,8 +11,15 @@
     <% else %>
       <%= for task <- @tasks do %>
         <div class="task-item">
-          <div class="task-id">ID: <%= task.task_id %></div>
+          <div class="task-header">
+            <div class="task-id">ID: <%= task.task_id %></div>
+            <span class={"badge " <> status_badge_class(task.status)}><%= task.status %></span>
+          </div>
           <div class="task-description"><%= task.description %></div>
+          <div class="task-meta">trace_id: <%= task.trace_id || "n/a" %></div>
+          <div class="task-meta">parent_task_id: <%= task.parent_task_id || "n/a" %></div>
+          <div class="task-meta">subtask_id: <%= task.subtask_id || "n/a" %></div>
+          <div class="task-meta">updated_at: <%= format_datetime(task.updated_at) %></div>
         </div>
       <% end %>
     <% end %>

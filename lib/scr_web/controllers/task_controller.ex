@@ -2,7 +2,7 @@ defmodule SCRWeb.TaskController do
   use SCRWeb, :controller
 
   def index(conn, _params) do
-    tasks = SCR.Agents.MemoryAgent.list_tasks()
+    tasks = list_context_tasks()
     render(conn, :index, tasks: tasks)
   end
 
@@ -90,4 +90,25 @@ defmodule SCRWeb.TaskController do
 
   defp parse_max_workers(value) when is_integer(value) and value > 0, do: value
   defp parse_max_workers(_), do: 2
+
+  defp list_context_tasks do
+    SCR.AgentContext.list()
+    |> Enum.map(fn ctx ->
+      %{
+        task_id: Map.get(ctx, :task_id),
+        description: Map.get(ctx, :description, ""),
+        status: Map.get(ctx, :status, :unknown),
+        trace_id: Map.get(ctx, :trace_id),
+        parent_task_id: Map.get(ctx, :parent_task_id),
+        subtask_id: Map.get(ctx, :subtask_id),
+        updated_at: Map.get(ctx, :updated_at)
+      }
+    end)
+    |> Enum.sort_by(&sort_timestamp(&1.updated_at), {:desc, DateTime})
+  rescue
+    _ -> []
+  end
+
+  defp sort_timestamp(%DateTime{} = ts), do: ts
+  defp sort_timestamp(_), do: DateTime.from_unix!(0)
 end

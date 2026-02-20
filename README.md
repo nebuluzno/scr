@@ -78,10 +78,11 @@ Open [http://localhost:4000](http://localhost:4000).
 
 ### Web UI pages
 - `/` Live dashboard (agents, cache, calls, quick actions)
+- `/tasks` Track task status and execution context (`trace_id`, parent/subtask IDs)
 - `/tasks/new` Submit new tasks
 - `/agents` Inspect running agents
 - `/tools` Inspect/execute tools
-- `/memory` Browse ETS memory state
+- `/memory` Browse ETS memory state with trace/context fields
 - `/metrics` LLM and cache metrics
 
 Dashboard now includes queue controls:
@@ -93,8 +94,9 @@ Dashboard now includes queue controls:
 1. Open `/tasks/new`
 2. Enter: `Research AI agent runtimes and produce a concise comparison`
 3. Submit
-4. Watch status on `/` and `/agents`
-5. Review state on `/memory` and `/metrics`
+4. Open `/tasks` to inspect status + `trace_id` context
+5. Watch runtime status on `/` and `/agents`
+6. Review memory/context state on `/memory` and `/metrics`
 
 ## LLM Setup (Optional)
 
@@ -145,7 +147,7 @@ mix phx.server
 ```
 
 ## Runtime Controls
-Tune these in `/Users/lars/Documents/SCR/config/config.exs`:
+Tune these in `config/config.exs`:
 
 ```elixir
 config :scr, :task_queue, max_size: 100

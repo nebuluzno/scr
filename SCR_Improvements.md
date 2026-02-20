@@ -29,6 +29,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Execution-context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across planner/worker/tool path.
 - `[done]` Tool composition/chaining utility (`SCR.Tools.Chain`) with step-level error handling.
 - `[done]` Structured logging baseline with trace metadata in queue/planner/worker/tool/chain flow.
+- `[done]` Web UI task/memory pages now show execution context (`trace_id`, `parent_task_id`, `subtask_id`) for debugging.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -46,8 +47,14 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Execution-context propagation: `trace_id`, `parent_task_id`, and `subtask_id` are propagated across planner/worker/tool path.
 - `[planned]` Add telemetry events for queue actions, tool-chain step timing, and tool-rate-limit rejections.
 - `[planned]` Add production JSON log profile and OpenTelemetry log/trace export bridge.
-- `[planned]` Expose `trace_id` and execution-context fields in Web UI task/memory views for faster troubleshooting.
 - `[planned]` Promote visual regression from artifact-only to baseline-diff blocking checks after snapshot stabilization.
+
+## New BEAM/OTP-Focused Suggestions
+- `[idea]` Add `:telemetry` event stream + `TelemetryMetricsPrometheus` endpoint for queue depth, tool latency, and supervisor restarts, with per-agent labels.
+- `[idea]` Introduce `PartitionSupervisor` for high-cardinality worker pools and sharded `AgentContext` ownership to reduce single-process contention.
+- `[idea]` Add optional durable queue backend (`:disk_log` or DETS + replay) to restore queued work across node restarts while keeping current in-memory fast path.
+- `[idea]` Add distributed node mode (`libcluster` + Horde/Swarm-style registry handoff) for cross-node agent spawning and failover experiments.
+- `[idea]` Add `:persistent_term` backed static config cache for hot-path policy/rate-limit lookups, with safe invalidation on config reload.
 
 ## Tutorial Track (Next Docs Phase)
 - `[done]` Initial step-by-step tutorials in `TUTORIALS.md`:
