@@ -20,6 +20,7 @@ It provides:
 - Full setup + first run: `QUICKSTART.md`
 - Step-by-step tutorials: `TUTORIALS.md`
 - Release prep checklist: `RELEASE_CHECKLIST.md`
+- Latest release notes: `RELEASE_NOTES_v0.2.0-alpha.md`
 - Use-case walkthroughs: `SCR_UseCases.md`
 - LLM architecture details: `SCR_LLM_Documentation.txt`
 - Improvement backlog: `SCR_Improvements.md`
