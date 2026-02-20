@@ -131,6 +131,11 @@ curl -s http://localhost:4000/metrics/prometheus | head -n 40
 2. Upload `priv/grafana/scr-runtime-overview.json`
 3. Select your Prometheus datasource and save
 
+### Optional: alert templates
+Use the included templates:
+- Prometheus rules: `priv/monitoring/prometheus/alerts.yml`
+- Alertmanager config: `priv/monitoring/alertmanager/alertmanager.yml`
+
 ### Optional: test tool chaining utility
 ```elixir
 SCR.Tools.Chain.execute(

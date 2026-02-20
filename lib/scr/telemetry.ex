@@ -45,6 +45,10 @@ defmodule SCR.Telemetry do
         event_name: [:scr, :task_queue, :stats],
         measurement: :size
       ),
+      last_value("scr.task_queue.max_size",
+        event_name: [:scr, :task_queue, :stats],
+        measurement: :max_size
+      ),
       last_value("scr.task_queue.high",
         event_name: [:scr, :task_queue, :stats],
         measurement: :high
@@ -152,6 +156,7 @@ defmodule SCR.Telemetry do
           [:scr, :task_queue, :stats],
           %{
             size: Map.get(stats, :size, 0),
+            max_size: Map.get(stats, :max_size, 0),
             high: Map.get(stats, :high, 0),
             normal: Map.get(stats, :normal, 0),
             low: Map.get(stats, :low, 0),

@@ -1,0 +1,37 @@
+groups:
+  - name: scr-runtime-alerts
+    rules:
+      - alert: SCRMCPCircuitOpen
+        expr: max(scr_mcp_server_circuit_open) > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: scr
+        annotations:
+          summary: "SCR MCP circuit breaker is open"
+          description: "At least one MCP server has an open circuit for more than 2 minutes."
+
+      - alert: SCRQueueSaturationHigh
+        expr: max(scr_task_queue_size / clamp_min(scr_task_queue_max_size, 1)) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: scr
+        annotations:
+          summary: "SCR queue saturation is high"
+          description: "Task queue usage is above 85% for at least 5 minutes."
+
+      - alert: SCRRateLimitRejectionsHigh
+        expr: |
+          (
+            sum(rate(scr_tools_rate_limit_total{result="rejected"}[5m]))
+            /
+            clamp_min(sum(rate(scr_tools_rate_limit_total[5m])), 0.001)
+          ) > 0.25
+        for: 10m
+        labels:
+          severity: warning
+          service: scr
+        annotations:
+          summary: "SCR tool rate-limit rejection ratio is high"
+          description: "More than 25% of tool limiter decisions are rejections over 10 minutes."

@@ -222,6 +222,16 @@ It includes panels for:
 - MCP call outcomes and p95 latency
 - MCP server health/failure/circuit-open state
 
+### Prometheus + Alertmanager Alert Templates
+Starter templates are included:
+- Prometheus rule group: `priv/monitoring/prometheus/alerts.yml`
+- Alertmanager routing config: `priv/monitoring/alertmanager/alertmanager.yml`
+
+Suggested load path:
+1. Mount `priv/monitoring/prometheus/alerts.yml` into your Prometheus rule files.
+2. Mount `priv/monitoring/alertmanager/alertmanager.yml` into Alertmanager.
+3. Adjust receiver URLs/channels for your environment.
+
 ## MCP Smoke Check (Dev)
 Use this to validate a real MCP server integration locally:
 ```bash
