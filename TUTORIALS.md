@@ -123,6 +123,41 @@ SCR.AgentContext.stats()
 - First calculator call succeeds; second returns `{:error, :rate_limited}`.
 - Tool metadata includes `trace_id`, `task_id`, `parent_task_id`, `subtask_id`, `agent_id`.
 
+## Tutorial 4: Observability Stack (Prometheus + Alertmanager + Grafana)
+
+### Goal
+Run the bundled observability stack and verify live runtime metrics + alert templates.
+
+### Steps
+1. Start SCR web server in one terminal:
+```bash
+mix phx.server
+```
+2. In a second terminal, start observability services:
+```bash
+docker compose -f docker-compose.observability.yml up -d
+```
+3. Open [http://localhost:9090/targets](http://localhost:9090/targets).
+4. Confirm `scr_app` target is `UP`.
+5. Open [http://localhost:3000](http://localhost:3000).
+6. Login with `admin` / `admin`.
+7. Open dashboard `SCR Runtime Overview`.
+8. Submit a few tasks from `/tasks/new`.
+9. Trigger a few tool calls from `/tools`.
+10. Check Alertmanager:
+```bash
+curl -s http://localhost:9093/api/v2/alerts | jq 'length'
+```
+11. Stop observability stack when done:
+```bash
+docker compose -f docker-compose.observability.yml down
+```
+
+### Expected Results
+- Prometheus target `scr_app` is healthy.
+- Grafana displays queue, rate-limit, MCP, and latency panels.
+- Alertmanager is running and ready to receive alerts from Prometheus rules.
+
 ## Next Tutorials (Planned)
 - Build a custom native tool and register it safely.
 - Add an MCP server profile and strict allowlist policy.

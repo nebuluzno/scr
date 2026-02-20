@@ -136,6 +136,21 @@ Use the included templates:
 - Prometheus rules: `priv/monitoring/prometheus/alerts.yml`
 - Alertmanager config: `priv/monitoring/alertmanager/alertmanager.yml`
 
+### Optional: full observability stack (Docker Compose)
+```bash
+docker compose -f docker-compose.observability.yml up -d
+```
+
+Then open:
+- Prometheus: `http://localhost:9090`
+- Alertmanager: `http://localhost:9093`
+- Grafana: `http://localhost:3000` (`admin` / `admin`)
+
+Shutdown:
+```bash
+docker compose -f docker-compose.observability.yml down
+```
+
 ### Optional: test tool chaining utility
 ```elixir
 SCR.Tools.Chain.execute(

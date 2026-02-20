@@ -232,6 +232,27 @@ Suggested load path:
 2. Mount `priv/monitoring/alertmanager/alertmanager.yml` into Alertmanager.
 3. Adjust receiver URLs/channels for your environment.
 
+### One-Command Observability Stack
+A prewired stack is available:
+- Compose file: `docker-compose.observability.yml`
+- Prometheus config: `priv/monitoring/prometheus/prometheus.yml`
+- Grafana provisioning: `priv/monitoring/grafana/provisioning/`
+
+Start stack:
+```bash
+docker compose -f docker-compose.observability.yml up -d
+```
+
+Access:
+- Prometheus: [http://localhost:9090](http://localhost:9090)
+- Alertmanager: [http://localhost:9093](http://localhost:9093)
+- Grafana: [http://localhost:3000](http://localhost:3000) (admin/admin)
+
+Stop stack:
+```bash
+docker compose -f docker-compose.observability.yml down
+```
+
 ## MCP Smoke Check (Dev)
 Use this to validate a real MCP server integration locally:
 ```bash

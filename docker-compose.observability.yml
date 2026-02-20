@@ -1,0 +1,48 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: scr-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./priv/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./priv/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - scr_prometheus_data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: scr-alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./priv/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: scr-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./priv/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./priv/grafana:/var/lib/grafana/dashboards:ro
+      - scr_grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  scr_prometheus_data:
+  scr_grafana_data:
