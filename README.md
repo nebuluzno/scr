@@ -1,4 +1,6 @@
 # Supervised Cognitive Runtime (SCR)
+Doc Owner: SCR Maintainers
+
 [![CI](https://github.com/nebuluzno/scr/actions/workflows/ci.yml/badge.svg)](https://github.com/nebuluzno/scr/actions/workflows/ci.yml)
 
 SCR is a supervised, fault-tolerant multi-agent runtime built with Elixir/OTP.
@@ -28,11 +30,11 @@ It provides:
 - Step-by-step tutorials: `TUTORIALS.md`
 - Documentation index: `DOCS_INDEX.md`
 - Release prep checklist: `RELEASE_CHECKLIST.md`
-- Latest release notes: `RELEASE_NOTES_v0.4.0-alpha.md`
-- Competitive comparison: `SCR_Competitive_Comparison.md`
-- Future roadmap TODO: `FUTURE_TODO.md`
-- Use-case walkthroughs: `SCR_UseCases.md`
-- LLM architecture details: `SCR_LLM_Documentation.txt`
+- Latest release notes: `docs/release/RELEASE_NOTES_v0.4.0-alpha.md`
+- Competitive comparison: `docs/positioning/SCR_Competitive_Comparison.md`
+- Future roadmap TODO: `docs/roadmap/FUTURE_TODO.md`
+- Use-case walkthroughs: `docs/guides/SCR_UseCases.md`
+- LLM architecture details: `docs/architecture/SCR_LLM_Documentation.txt`
 - Improvement backlog: `SCR_Improvements.md`
 - Docs/UI quality suggestions (visual regression + docs CI): `SCR_Improvements.md`
 

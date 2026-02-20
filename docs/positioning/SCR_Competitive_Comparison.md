@@ -1,4 +1,5 @@
 # SCR Competitive Comparison
+Doc Owner: SCR Maintainers
 
 This document compares SCR to common agent/runtime options used in production and research workflows.
 

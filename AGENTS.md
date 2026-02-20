@@ -1,4 +1,5 @@
 # AGENTS.md
+Doc Owner: SCR Maintainers
 
 > This file provides context for AI agents working with this codebase.
 
@@ -306,11 +307,11 @@ See `SCR_Improvements.md` for planned features:
 
 - `README.md` - Project overview and features
 - `QUICKSTART.md` - Getting started guide
-- `SCR_UseCases.md` - Usage examples
-- `SCR_LLM_Documentation.txt` - LLM integration details
+- `docs/guides/SCR_UseCases.md` - Usage examples
+- `docs/architecture/SCR_LLM_Documentation.txt` - LLM integration details
 - `SCR_Improvements.md` - Roadmap and planned features
-- `FUTURE_TODO.md` - Forward-looking backlog after current milestone
-- `SCR_Competitive_Comparison.md` - Positioning against other runtime options
+- `docs/roadmap/FUTURE_TODO.md` - Forward-looking backlog after current milestone
+- `docs/positioning/SCR_Competitive_Comparison.md` - Positioning against other runtime options
 - `plans/phoenix_web_interface_plan.md` - Web interface design
 
 ## Version

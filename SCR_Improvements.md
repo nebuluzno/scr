@@ -9,7 +9,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[idea]`: candidate item, not yet scheduled
 
 All previously open roadmap items in this file are now delivered.
-Forward-looking candidates moved to `FUTURE_TODO.md`.
+Forward-looking candidates moved to `docs/roadmap/FUTURE_TODO.md`.
 
 ## Current Delivery Status
 - `[done]` Unified hybrid tool architecture (native + MCP) via one registry/policy/execution path.

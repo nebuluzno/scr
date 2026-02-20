@@ -1,5 +1,6 @@
 
 # Building Fault-Tolerant AI Agents with Elixir/OTP: The Supervised Cognitive Runtime
+Doc Owner: SCR Maintainers
 
 > Runtime commands:
 > - CLI: `mix run -e "SCR.CLI.Demo.main([])"`

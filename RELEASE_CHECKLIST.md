@@ -1,4 +1,5 @@
 # SCR Release Checklist
+Doc Owner: SCR Maintainers
 
 This checklist prepares the next release cut.  
 Current docs version label: `v0.4.0-alpha`  
@@ -13,7 +14,7 @@ mix test
 ```
 2. Validate docs:
 ```bash
-npx -y markdownlint-cli@0.39.0 --config .markdownlint.json README.md QUICKSTART.md TUTORIALS.md SCR_Improvements.md SCR_UseCases.md SCR_Medium_Article.md AGENTS.md plans/*.md
+npx -y markdownlint-cli@0.39.0 --config .markdownlint.json README.md QUICKSTART.md TUTORIALS.md DOCS_INDEX.md SCR_Improvements.md AGENTS.md docs/guides/SCR_UseCases.md docs/guides/SCR_Medium_Article.md docs/positioning/SCR_Competitive_Comparison.md docs/roadmap/FUTURE_TODO.md docs/release/RELEASE_NOTES_v0.4.0-alpha.md plans/*.md
 ```
 3. Smoke-check MCP integration:
 ```bash
@@ -25,6 +26,8 @@ mix scr.mcp.smoke
 2. Update version references in:
 - `README.md`
 - `AGENTS.md`
+- `lib/scr_web/components/layouts/root.html.heex`
+- `lib/scr/tools/mcp/client.ex`
 - any release notes/changelog
 
 ## 3. Release notes

@@ -29,10 +29,15 @@ jobs:
             --config .markdownlint.json \
             "README.md" \
             "QUICKSTART.md" \
+            "TUTORIALS.md" \
+            "DOCS_INDEX.md" \
             "SCR_Improvements.md" \
-            "SCR_UseCases.md" \
-            "SCR_Medium_Article.md" \
             "AGENTS.md" \
+            "docs/guides/SCR_UseCases.md" \
+            "docs/guides/SCR_Medium_Article.md" \
+            "docs/positioning/SCR_Competitive_Comparison.md" \
+            "docs/roadmap/FUTURE_TODO.md" \
+            "docs/release/RELEASE_NOTES_v0.4.0-alpha.md" \
             "plans/*.md"
 
       - name: Internal link check
@@ -41,7 +46,17 @@ jobs:
           fail: true
           args: >-
             --offline --no-progress
-            README.md QUICKSTART.md SCR_Improvements.md SCR_UseCases.md SCR_Medium_Article.md AGENTS.md plans/phoenix_web_interface_plan.md
+            README.md QUICKSTART.md TUTORIALS.md DOCS_INDEX.md SCR_Improvements.md AGENTS.md docs/guides/SCR_UseCases.md docs/guides/SCR_Medium_Article.md docs/positioning/SCR_Competitive_Comparison.md docs/roadmap/FUTURE_TODO.md docs/release/RELEASE_NOTES_v0.4.0-alpha.md plans/phoenix_web_interface_plan.md
+
+      - name: Version drift check
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/.*version: "\(.*\)".*/\1/p' mix.exs | head -n1)
+          test -n "$VERSION"
+          grep -q "Current version: \*\*v$VERSION\*\*" AGENTS.md
+          grep -q "\`v$VERSION\`" README.md
+          grep -q "v$VERSION" lib/scr_web/components/layouts/root.html.heex
+          grep -q "\"version\" => \"$VERSION\"" lib/scr/tools/mcp/client.ex
 
   test:
     name: Elixir CI

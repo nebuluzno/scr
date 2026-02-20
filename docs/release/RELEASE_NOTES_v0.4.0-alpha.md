@@ -1,4 +1,5 @@
 # SCR v0.4.0-alpha Release Notes
+Doc Owner: SCR Maintainers
 
 Release date: 2026-02-20
 
@@ -17,8 +18,8 @@ Release date: 2026-02-20
 
 ## Notable Ops/Docs Additions
 - Added telemetry + durable queue replay tutorial (`TUTORIALS.md`, Tutorial 12).
-- Added future roadmap list (`FUTURE_TODO.md`).
-- Added market positioning document (`SCR_Competitive_Comparison.md`).
+- Added future roadmap list (`docs/roadmap/FUTURE_TODO.md`).
+- Added market positioning document (`docs/positioning/SCR_Competitive_Comparison.md`).
 - Updated `README.md`, `QUICKSTART.md`, `AGENTS.md`, and `SCR_Improvements.md`.
 
 ## Known Follow-ups (Post v0.4.0-alpha)
