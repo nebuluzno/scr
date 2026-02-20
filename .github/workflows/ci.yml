@@ -124,6 +124,82 @@ jobs:
           name: coverage-report
           path: cover/
 
+  visual_regression:
+    name: Visual Regression (Snapshot Artifact)
+    runs-on: ubuntu-latest
+    needs: test
+    continue-on-error: true
+
+    env:
+      MIX_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup BEAM
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.14.5"
+          otp-version: "25.3"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Restore deps and build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile
+        run: mix compile
+
+      - name: Install Playwright Chromium
+        run: npx -y playwright@1.52.0 install --with-deps chromium
+
+      - name: Start Phoenix server
+        run: |
+          mix phx.server > /tmp/scr_phx.log 2>&1 &
+
+      - name: Wait for server
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://127.0.0.1:4000 > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Phoenix server failed to start"
+          cat /tmp/scr_phx.log || true
+          exit 1
+
+      - name: Capture page screenshots
+        run: |
+          mkdir -p visual-regression/current
+          npx -y playwright@1.52.0 screenshot --browser=chromium --device="Desktop Chrome" http://127.0.0.1:4000 visual-regression/current/dashboard.png
+          npx -y playwright@1.52.0 screenshot --browser=chromium --device="Desktop Chrome" http://127.0.0.1:4000/tasks/new visual-regression/current/tasks-new.png
+          npx -y playwright@1.52.0 screenshot --browser=chromium --device="Desktop Chrome" http://127.0.0.1:4000/metrics visual-regression/current/metrics.png
+          npx -y playwright@1.52.0 screenshot --browser=chromium --device="Desktop Chrome" http://127.0.0.1:4000/tools visual-regression/current/tools.png
+
+      - name: Upload visual snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-snapshots
+          path: |
+            visual-regression/current
+            /tmp/scr_phx.log
+
   mcp_smoke:
     name: MCP Smoke (Opt-in)
     runs-on: ubuntu-latest

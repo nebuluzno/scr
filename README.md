@@ -38,6 +38,7 @@ mix compile
 - Main CI validates formatting, compile warnings, and tests.
 - Coverage runs in a non-blocking job and uploads `cover/` as an artifact.
 - Docs quality gate validates markdown lint + internal links on key project docs.
+- Visual regression job captures dashboard/task/metrics/tools screenshots as CI artifacts (currently non-blocking).
 - Optional MCP smoke job runs only on non-PR events when these repo secrets are set:
   `SCR_MCP_SERVER_NAME`, `SCR_MCP_SERVER_COMMAND`, `SCR_MCP_SERVER_ARGS`, `SCR_MCP_ALLOWED_TOOLS`.
 

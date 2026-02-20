@@ -47,6 +47,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[planned]` Add telemetry events for queue actions, tool-chain step timing, and tool-rate-limit rejections.
 - `[planned]` Add production JSON log profile and OpenTelemetry log/trace export bridge.
 - `[planned]` Expose `trace_id` and execution-context fields in Web UI task/memory views for faster troubleshooting.
+- `[planned]` Promote visual regression from artifact-only to baseline-diff blocking checks after snapshot stabilization.
 
 ## Tutorial Track (Next Docs Phase)
 - `[done]` Initial step-by-step tutorials in `TUTORIALS.md`:
@@ -74,7 +75,7 @@ mix phx.server
 
 ## New Suggestions: Docs and UI Quality
 
-### 1. [planned] Visual Regression Testing for Web UI
+### 1. [in-progress] Visual Regression Testing for Web UI
 **Why:** UI updates are now centralized and more design-driven; regressions are easier to introduce across pages.
 
 **Suggestion:**
