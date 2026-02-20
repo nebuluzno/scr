@@ -149,6 +149,10 @@ config :scr, :tool_rate_limit,
   per_tool: %{
     "calculator" => %{max_calls: 30, window_ms: 60_000}
   }
+
+config :scr, :agent_context,
+  retention_ms: 3_600_000,
+  cleanup_interval_ms: 300_000
 ```
 
 Quick IEx checks:
@@ -161,6 +165,7 @@ SCR.TaskQueue.stats()
 SCR.HealthCheck.stats()
 SCR.Agent.health_check("planner_1")
 SCR.Tools.RateLimiter.stats()
+SCR.AgentContext.stats()
 SCR.AgentContext.list() |> Enum.take(3)
 ```
 

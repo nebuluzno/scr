@@ -98,6 +98,7 @@ SCR.TaskQueue.stats()
 SCR.HealthCheck.stats()
 SCR.Agent.health_check("planner_1")
 SCR.Tools.RateLimiter.stats()
+SCR.AgentContext.stats()
 SCR.AgentContext.list() |> Enum.take(3)
 ```
 
