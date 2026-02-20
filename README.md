@@ -280,6 +280,11 @@ npx playwright install chromium
 npm run visual:test
 ```
 
+Run the CI variant (expects Phoenix already running at `http://127.0.0.1:4000`):
+```bash
+npm run visual:test:ci
+```
+
 Refresh baselines intentionally:
 ```bash
 npm run visual:update

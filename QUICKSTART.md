@@ -166,6 +166,11 @@ npx playwright install chromium
 npm run visual:test
 ```
 
+If Phoenix is already running, you can use:
+```bash
+npm run visual:test:ci
+```
+
 Refresh baselines when UI changes are intentional:
 ```bash
 npm run visual:update

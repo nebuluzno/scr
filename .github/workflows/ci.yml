@@ -166,8 +166,33 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Start Phoenix server
+        run: |
+          MIX_ENV=test mix phx.server > /tmp/phoenix.log 2>&1 &
+          echo $! > /tmp/phoenix.pid
+
+      - name: Wait for Phoenix server
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4000/ > /dev/null; then
+              echo "Phoenix server is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Phoenix server failed to become ready within 120 seconds."
+          tail -n 200 /tmp/phoenix.log || true
+          exit 1
+
       - name: Run visual regression baseline diff
-        run: npm run visual:test
+        run: npm run visual:test:ci
+
+      - name: Stop Phoenix server
+        if: always()
+        run: |
+          if [ -f /tmp/phoenix.pid ]; then
+            kill "$(cat /tmp/phoenix.pid)" || true
+          fi
 
       - name: Upload visual regression artifacts
         if: always()
