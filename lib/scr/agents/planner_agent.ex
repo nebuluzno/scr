@@ -22,6 +22,7 @@ defmodule SCR.Agents.PlannerAgent do
   alias SCR.Agents.WriterAgent
   alias SCR.Agents.ValidatorAgent
   alias SCR.LLM.Client
+  alias SCR.TaskQueue
 
   @allowed_agent_types %{
     "worker" => :worker,
@@ -59,29 +60,34 @@ defmodule SCR.Agents.PlannerAgent do
        subtasks: [],
        worker_pool: [],
        results: [],
-       status: :idle,
-       task_queue: []
+       status: :idle
      }}
   end
 
   def handle_message(%Message{type: :task, payload: %{task: task_data}, from: _from}, state) do
     IO.puts("🧠 PlannerAgent received main task: #{inspect(task_data[:description])}")
-
-    # Get internal state from context
     internal_state = state.agent_state
 
-    # Decompose task into subtasks using LLM
-    subtasks = decompose_task_with_llm(task_data)
+    task_data = normalize_main_task(task_data)
+    priority = TaskQueue.normalize_priority(Map.get(task_data, :priority, :normal))
+    queue_server = task_queue_server()
 
-    # Store in memory
-    store_in_memory(:task, %{task_data: task_data, subtasks: subtasks})
+    case TaskQueue.enqueue(task_data, priority, queue_server) do
+      {:ok, _} ->
+        {:noreply, maybe_start_next_task(internal_state, state.agent_id)}
 
-    new_state = %{internal_state | current_task: task_data, subtasks: subtasks, status: :planning}
+      {:error, :queue_full} ->
+        IO.puts("⚠️ Task queue full - dropping task #{task_data[:task_id]}")
+        {:noreply, internal_state}
+    end
+  end
 
-    # Start executing subtasks
-    new_state = execute_subtasks(new_state)
-
-    {:noreply, new_state}
+  def handle_message(
+        %Message{type: :status, payload: %{status: %{action: :dispatch_next}}},
+        state
+      ) do
+    internal_state = state.agent_state
+    {:noreply, maybe_start_next_task(internal_state, state.agent_id)}
   end
 
   def handle_message(%Message{type: :result, payload: %{result: result_data}, from: from}, state) do
@@ -139,7 +145,16 @@ defmodule SCR.Agents.PlannerAgent do
         critique: critique_data
       })
 
-      {:noreply, %{internal_state | status: :completed}}
+      reset_state = %{
+        internal_state
+        | current_task: nil,
+          subtasks: [],
+          worker_pool: [],
+          results: [],
+          status: :idle
+      }
+
+      {:noreply, maybe_start_next_task(reset_state, state.agent_id)}
     end
   end
 
@@ -282,6 +297,54 @@ defmodule SCR.Agents.PlannerAgent do
         priority: 4
       }
     ]
+  end
+
+  defp maybe_start_next_task(state, planner_agent_id) do
+    if planner_busy?(state) do
+      state
+    else
+      case TaskQueue.dequeue(task_queue_server()) do
+        {:ok, next_task} ->
+          start_main_task(next_task, state, planner_agent_id)
+
+        :empty ->
+          %{state | status: :idle}
+      end
+    end
+  end
+
+  defp planner_busy?(state) do
+    state.status in [:planning, :evaluating, :revising] and not is_nil(state.current_task)
+  end
+
+  defp start_main_task(task_data, state, _planner_agent_id) do
+    subtasks = decompose_task_with_llm(task_data)
+
+    store_in_memory(:task, %{task_data: task_data, subtasks: subtasks})
+
+    state
+    |> Map.merge(%{
+      current_task: task_data,
+      subtasks: subtasks,
+      worker_pool: [],
+      results: [],
+      status: :planning
+    })
+    |> execute_subtasks()
+  end
+
+  defp normalize_main_task(task_data) do
+    %{
+      task_id: Map.get(task_data, :task_id, UUID.uuid4()),
+      description: Map.get(task_data, :description, ""),
+      type: Map.get(task_data, :type, :general),
+      priority: Map.get(task_data, :priority, :normal),
+      max_workers: Map.get(task_data, :max_workers, 2)
+    }
+  end
+
+  defp task_queue_server do
+    Application.get_env(:scr, :task_queue, []) |> Keyword.get(:server, SCR.TaskQueue)
   end
 
   defp execute_subtasks(state) do

@@ -27,6 +27,8 @@ config :scr, :tools,
     servers: %{}
   ]
 
+config :scr, :task_queue, max_size: 100
+
 # Import environment-specific config
 if config_env() == :dev do
   import_config "dev.exs"

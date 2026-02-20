@@ -18,6 +18,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Coverage CI artifact job (non-blocking until coverage rises).
 - `[done]` Optional CI MCP smoke job (secret-gated).
 - `[done]` Docs quality gate in CI (markdown lint + internal link validation).
+- `[done]` Priority task queue + backpressure (`SCR.TaskQueue`) with planner/task submission wiring.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -104,7 +105,7 @@ end
 - Instant metric updates
 - No page refreshes needed
 
-### 2. Task Queue with Priority
+### 2. [done] Task Queue with Priority
 **Current State:** Tasks execute immediately
 **Improvement:** Implement a priority-based task queue
 

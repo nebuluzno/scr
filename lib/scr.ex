@@ -31,6 +31,8 @@ defmodule SCR do
       {SCR.Tools.Registry, default_tools: @default_tools},
       # Start MCP server manager (no-op unless enabled in config)
       {SCR.Tools.MCP.ServerManager, []},
+      # Start priority task queue with backpressure
+      {SCR.TaskQueue, []},
       # Start Phoenix endpoint
       SCRWeb.Endpoint,
       # Start the main SCR supervisor
