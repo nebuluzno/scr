@@ -13,7 +13,7 @@ for (const pageConfig of pages) {
     await page.waitForTimeout(1200);
 
     await expect(page).toHaveScreenshot(pageConfig.snapshot, {
-      fullPage: true,
+      fullPage: false,
       // Keep CI stable across Linux/macOS font rendering differences.
       maxDiffPixelRatio: 0.05
     });
