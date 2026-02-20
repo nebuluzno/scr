@@ -1,6 +1,11 @@
 
 # Building Fault-Tolerant AI Agents with Elixir/OTP: The Supervised Cognitive Runtime
 
+> Runtime commands:
+> - CLI: `mix run -e "SCR.CLI.Demo.main([])"`
+> - Crash test: `mix run -e "SCR.CLI.Demo.main([\"--crash-test\"])"`
+> - Web UI: `mix phx.server` and open `http://localhost:4000`
+
 ## Introduction
 
 As AI agents become more complex and handle critical tasks, **fault tolerance** isn't optional — it's essential. When an AI agent crashes mid-task in production, the consequences can range from annoying to catastrophic.

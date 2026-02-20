@@ -2,6 +2,53 @@
 
 This document outlines potential improvements and optimizations for the Supervised Cognitive Runtime.
 
+## Current Baseline Commands
+
+CLI demo:
+```bash
+mix run -e "SCR.CLI.Demo.main([])"
+```
+
+Crash test:
+```bash
+mix run -e "SCR.CLI.Demo.main([\"--crash-test\"])"
+```
+
+Web UI:
+```bash
+mix phx.server
+```
+
+## New Suggestions: Docs and UI Quality
+
+### 1. Visual Regression Testing for Web UI
+**Why:** UI updates are now centralized and more design-driven; regressions are easier to introduce across pages.
+
+**Suggestion:**
+- Add screenshot-based regression tests for:
+  - `/`
+  - `/tasks/new`
+  - `/metrics`
+  - `/tools`
+- Run checks in CI on pull requests and store baseline snapshots in repo.
+
+**Expected Benefit:**
+- Detect layout/style regressions before merge
+- Make UI changes safer and faster
+
+### 2. Documentation CI Quality Gate
+**Why:** CLI and Web UI docs are now expanded, and drift is likely as runtime features evolve.
+
+**Suggestion:**
+- Add docs CI checks:
+  - markdown linting
+  - internal link validation
+  - optional command example smoke checks for key commands
+
+**Expected Benefit:**
+- Keep docs accurate and consistent
+- Prevent stale commands and broken links
+
 ---
 
 ## 🚀 High Priority Improvements

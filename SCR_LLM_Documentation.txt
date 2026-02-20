@@ -4,6 +4,19 @@
 
 The SCR (Supervised Cognitive Runtime) now supports LLM (Large Language Model) integration for intelligent task execution. This document describes the architecture and implementation.
 
+## Quick Execution Examples
+
+CLI:
+```bash
+mix run -e "SCR.CLI.Demo.main([])"
+```
+
+Web UI:
+```bash
+mix phx.server
+```
+Then open `http://localhost:4000` and submit a task from `/tasks/new`.
+
 ## Architecture
 
 ```

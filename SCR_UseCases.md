@@ -6,6 +6,20 @@ This document outlines three practical agentic use cases that can be implemented
 
 ## Current Capabilities Summary
 
+## Run These Use Cases
+
+### CLI path
+```bash
+mix run -e "SCR.CLI.Demo.main([])"
+```
+Use this when you want a terminal-first execution trace.
+
+### Web UI path
+```bash
+mix phx.server
+```
+Then open [http://localhost:4000](http://localhost:4000), go to `/tasks/new`, and submit a use-case prompt from this document.
+
 ### Agents
 - **PlannerAgent** - Decomposes tasks, coordinates workers
 - **WorkerAgent** - Executes subtasks with LLM + tool access
