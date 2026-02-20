@@ -510,3 +510,47 @@ SCR.Distributed.handoff_agent("worker_remote_1", Node.self())
 - Peer status exposes reconnect interval and failure counters.
 - Remote health checks return `:ok` for active agents and structured errors for missing ones.
 - Manual handoff moves the agent to the target node while preserving its registered id.
+
+## Tutorial 12: Telemetry Stream + Durable Queue Replay
+
+### Goal
+Inspect live telemetry events and validate queue replay behavior with DETS backend.
+
+### Steps
+1. Start IEx:
+```bash
+iex -S mix
+```
+2. Subscribe to telemetry stream:
+```elixir
+SCR.Telemetry.Stream.subscribe()
+```
+3. Trigger queue/tool activity:
+```elixir
+SCR.TaskQueue.enqueue(%{task_id: "telemetry_demo_1", type: :research}, :normal)
+SCR.TaskQueue.dequeue()
+SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, "b" => 2})
+```
+4. Read recent stream events:
+```elixir
+SCR.Telemetry.Stream.recent(30)
+```
+5. Enable durable queue backend:
+```elixir
+Application.put_env(:scr, :task_queue,
+  max_size: 100,
+  backend: :dets,
+  dets_path: "tmp/task_queue.dets"
+)
+SCR.ConfigCache.refresh(:task_queue)
+```
+6. Restart app, enqueue task, restart again, then dequeue:
+```elixir
+SCR.TaskQueue.enqueue(%{task_id: "replay_demo_1"}, :high)
+# restart app/session
+SCR.TaskQueue.dequeue()
+```
+
+### Expected Results
+- Telemetry stream contains queue/tool events with metadata tags.
+- Queue tasks survive restart and replay when DETS backend is enabled.

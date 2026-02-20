@@ -9,7 +9,7 @@ defmodule SCRWeb.MetricsControllerTest do
     :telemetry.execute(
       [:scr, :task_queue, :enqueue],
       %{count: 1, queue_size: 1},
-      %{priority: :normal, result: :accepted}
+      %{priority: :normal, result: :accepted, task_type: "test"}
     )
 
     :telemetry.execute(

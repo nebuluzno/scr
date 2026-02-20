@@ -34,12 +34,12 @@ defmodule SCR.Telemetry do
       counter("scr.task_queue.enqueue.total",
         event_name: [:scr, :task_queue, :enqueue],
         measurement: :count,
-        tags: [:priority, :result]
+        tags: [:priority, :result, :task_type]
       ),
       counter("scr.task_queue.dequeue.total",
         event_name: [:scr, :task_queue, :dequeue],
         measurement: :count,
-        tags: [:priority, :result]
+        tags: [:priority, :result, :task_type]
       ),
       last_value("scr.task_queue.size",
         event_name: [:scr, :task_queue, :stats],
@@ -68,13 +68,13 @@ defmodule SCR.Telemetry do
       distribution("scr.tools.execute.duration.milliseconds",
         event_name: [:scr, :tools, :execute],
         measurement: :duration_ms,
-        tags: [:tool, :source, :result],
+        tags: [:tool, :source, :result, :agent_id],
         reporter_options: [buckets: [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000]]
       ),
       counter("scr.tools.execute.total",
         event_name: [:scr, :tools, :execute],
         measurement: :count,
-        tags: [:tool, :source, :result]
+        tags: [:tool, :source, :result, :agent_id]
       ),
       counter("scr.tools.rate_limit.total",
         event_name: [:scr, :tools, :rate_limit],
@@ -110,12 +110,12 @@ defmodule SCR.Telemetry do
       counter("scr.health.check.total",
         event_name: [:scr, :health, :check],
         measurement: :count,
-        tags: [:result]
+        tags: [:result, :agent_id]
       ),
       counter("scr.health.heal.total",
         event_name: [:scr, :health, :heal],
         measurement: :count,
-        tags: [:result]
+        tags: [:result, :agent_id]
       ),
       last_value("scr.health.unhealthy.total",
         event_name: [:scr, :health, :stats],

@@ -12,6 +12,9 @@ It provides:
 - Streaming completions support (prompt and chat streams)
 - Unified tool execution (native tools + MCP integration path)
 - Distributed runtime baseline (libcluster discovery + spec-registry handoff + cross-node RPC)
+- Distributed watchdog quarantine + placement guardrails
+- Sharded agent context ownership via `PartitionSupervisor`
+- Optional durable task queue replay backend (DETS)
 - Tool composition helper for pipelines (`SCR.Tools.Chain`)
 - Tool rate limiting guardrail (`SCR.Tools.RateLimiter`)
 - Execution context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across tool calls
@@ -24,7 +27,9 @@ It provides:
 - Full setup + first run: `QUICKSTART.md`
 - Step-by-step tutorials: `TUTORIALS.md`
 - Release prep checklist: `RELEASE_CHECKLIST.md`
-- Latest release notes: `RELEASE_NOTES_v0.3.0-alpha.md`
+- Latest release notes: `RELEASE_NOTES_v0.4.0-alpha.md`
+- Competitive comparison: `SCR_Competitive_Comparison.md`
+- Future roadmap TODO: `FUTURE_TODO.md`
 - Use-case walkthroughs: `SCR_UseCases.md`
 - LLM architecture details: `SCR_LLM_Documentation.txt`
 - Improvement backlog: `SCR_Improvements.md`
@@ -240,6 +245,12 @@ SCR.Distributed.check_cluster_health()
 SCR.Distributed.handoff_agent("worker_1", :"scr2@127.0.0.1")
 ```
 
+Telemetry stream API:
+```elixir
+SCR.Telemetry.Stream.subscribe()
+SCR.Telemetry.Stream.recent(50)
+```
+
 Security note:
 - Use a strong shared Erlang cookie for all cluster nodes.
 - Avoid exposing Erlang distribution ports publicly without network controls.
@@ -257,6 +268,9 @@ Tune these in `config/config.exs`:
 
 ```elixir
 config :scr, :task_queue, max_size: 100
+config :scr, :task_queue,
+  backend: :memory, # :memory | :dets
+  dets_path: "tmp/task_queue.dets"
 
 config :scr, :health_check,
   interval_ms: 15_000,
@@ -274,7 +288,8 @@ config :scr, :tool_rate_limit,
 
 config :scr, :agent_context,
   retention_ms: 3_600_000,
-  cleanup_interval_ms: 300_000
+  cleanup_interval_ms: 300_000,
+  shards: 8
 
 config :scr, :memory_storage,
   backend: :ets, # :ets | :dets
@@ -342,6 +357,8 @@ export SCR_DISTRIBUTED_FLAP_THRESHOLD=3
 export SCR_DISTRIBUTED_QUARANTINE_MS=120000
 export SCR_DISTRIBUTED_RPC_TIMEOUT_MS=5000
 export RELEASE_COOKIE="replace-with-strong-cookie"
+export SCR_TASK_QUEUE_BACKEND=memory
+export SCR_TASK_QUEUE_DETS_PATH=tmp/task_queue.dets
 ```
 
 Quick IEx checks:
@@ -482,4 +499,4 @@ mix scr.mcp.smoke --server filesystem --tool list_directory --args-json '{"path"
 ```
 
 ## Current Version
-`v0.3.0-alpha`
+`v0.4.0-alpha`

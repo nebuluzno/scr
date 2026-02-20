@@ -157,6 +157,6 @@ defmodule SCR.Distributed.PeerManager do
   defp normalize_peers(_), do: []
 
   defp distributed_config do
-    Application.get_env(:scr, :distributed, [])
+    SCR.ConfigCache.get(:distributed, [])
   end
 end

@@ -8,6 +8,9 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[planned]`: approved but not yet implemented
 - `[idea]`: candidate item, not yet scheduled
 
+All previously open roadmap items in this file are now delivered.
+Forward-looking candidates moved to `FUTURE_TODO.md`.
+
 ## Current Delivery Status
 - `[done]` Unified hybrid tool architecture (native + MCP) via one registry/policy/execution path.
 - `[done]` Strict/demo tool policy enforcement with execution context propagation.
@@ -57,12 +60,12 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Promote visual regression from artifact-only to baseline-diff blocking checks after snapshot stabilization.
 
 ## New BEAM/OTP-Focused Suggestions
-- `[idea]` Add `:telemetry` event stream + `TelemetryMetricsPrometheus` endpoint for queue depth, tool latency, and supervisor restarts, with per-agent labels.
-- `[idea]` Introduce `PartitionSupervisor` for high-cardinality worker pools and sharded `AgentContext` ownership to reduce single-process contention.
-- `[idea]` Add optional durable queue backend (`:disk_log` or DETS + replay) to restore queued work across node restarts while keeping current in-memory fast path.
+- `[done]` Add telemetry event stream and Prometheus labels for queue/tool/health events, including per-agent tool/health tags.
+- `[done]` Introduce `PartitionSupervisor`-backed sharded `AgentContext` ownership to reduce single-process contention.
+- `[done]` Add optional durable queue backend (`DETS + replay`) for restart resilience while retaining in-memory fast path by default.
 - `[done]` Add distributed node mode baseline (`libcluster` + spec-registry-based handoff) for cross-node agent spawning and failover experiments.
 - `[done]` Add distributed node watchdog (`Node.monitor/2`) with unhealthy-node quarantine to avoid scheduling new work on flapping peers.
-- `[idea]` Add `:persistent_term` backed static config cache for hot-path policy/rate-limit lookups, with safe invalidation on config reload.
+- `[done]` Add `:persistent_term` backed static config cache (`SCR.ConfigCache`) for hot-path policy/rate-limit/distributed lookups with refresh hooks.
 - `[done]` Add alert rule templates (Prometheus/Alertmanager) for MCP circuit-open spikes, queue saturation, and sustained rate-limit rejection bursts.
 
 ## Tutorial Track (Next Docs Phase)
@@ -631,6 +634,6 @@ end
 ## Recommended Next Steps
 
 1. **Distributed placement strategy v2** - Add load/health-weighted node scoring (queue depth + latency + failure rate) beyond simple healthy-node filtering.
-2. **Queue durability beyond memory** - Optional replayable queue backend for restart resilience.
-3. **Provider failover policy** - Add runtime fallback/health-based provider switching across Ollama/OpenAI/Anthropic.
-4. **Distributed placement strategy** - Add load/health-aware agent placement for `start_agent_on` and automatic handoff targets.
+2. **Provider failover policy** - Add runtime fallback/health-based provider switching across Ollama/OpenAI/Anthropic.
+3. **Cross-node backpressure propagation** - Feed per-node queue saturation into handoff and auto-placement decisions.
+4. **Durable memory backend beyond DETS** - Add pluggable storage options (e.g., SQLite/Postgres) for larger workloads.

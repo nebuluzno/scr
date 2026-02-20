@@ -50,7 +50,10 @@ config :scr, :tools,
     servers: %{}
   ]
 
-config :scr, :task_queue, max_size: 100
+config :scr, :task_queue,
+  max_size: 100,
+  backend: :memory,
+  dets_path: System.get_env("SCR_TASK_QUEUE_DETS_PATH") || "tmp/task_queue.dets"
 
 config :scr, :health_check,
   interval_ms: 15_000,

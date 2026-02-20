@@ -1,13 +1,14 @@
 defmodule SCR.AgentContext do
   @moduledoc """
   Shared task context store for multi-agent workflows.
+
+  Backed by partitioned shard processes to reduce contention on busy systems.
   """
 
   use GenServer
 
-  @table :scr_agent_context
-  @default_retention_ms 3_600_000
-  @default_cleanup_interval_ms 300_000
+  @partition_name SCR.AgentContext.PartitionSupervisor
+  @default_shards 8
 
   def start_link(opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
@@ -15,169 +16,97 @@ defmodule SCR.AgentContext do
   end
 
   def upsert(task_id, attrs) when is_binary(task_id) and is_map(attrs) do
-    GenServer.call(__MODULE__, {:upsert, task_id, attrs})
+    GenServer.call(shard_server(task_id), {:upsert, task_id, attrs})
   end
 
   def add_finding(task_id, finding) when is_binary(task_id) do
-    GenServer.call(__MODULE__, {:add_finding, task_id, finding})
+    GenServer.call(shard_server(task_id), {:add_finding, task_id, finding})
   end
 
   def set_status(task_id, status) when is_binary(task_id) do
-    GenServer.call(__MODULE__, {:set_status, task_id, status})
+    GenServer.call(shard_server(task_id), {:set_status, task_id, status})
   end
 
   def get(task_id) when is_binary(task_id) do
-    case :ets.lookup(@table, task_id) do
-      [{^task_id, context}] -> {:ok, context}
-      [] -> {:error, :not_found}
-    end
+    GenServer.call(shard_server(task_id), {:get, task_id})
   end
 
   def list do
-    :ets.tab2list(@table)
-    |> Enum.map(fn {_task_id, context} -> context end)
+    shard_pids()
+    |> Enum.flat_map(&GenServer.call(&1, :list))
   end
 
   def clear do
-    GenServer.call(__MODULE__, :clear)
+    shard_pids()
+    |> Enum.each(&GenServer.call(&1, :clear))
+
+    :ok
   end
 
   def stats do
-    GenServer.call(__MODULE__, :stats)
+    shard_pids()
+    |> Enum.map(&GenServer.call(&1, :stats))
+    |> Enum.reduce(%{entries: 0, cleaned_entries: 0}, fn shard_stats, acc ->
+      %{
+        entries: acc.entries + Map.get(shard_stats, :entries, 0),
+        cleaned_entries: acc.cleaned_entries + Map.get(shard_stats, :cleaned_entries, 0)
+      }
+    end)
+    |> Map.put(:shards, shard_count())
   end
 
   def run_cleanup do
-    GenServer.call(__MODULE__, :run_cleanup)
+    deleted =
+      shard_pids()
+      |> Enum.reduce(0, fn pid, acc ->
+        case GenServer.call(pid, :run_cleanup) do
+          {:ok, n} -> acc + n
+          _ -> acc
+        end
+      end)
+
+    {:ok, deleted}
   end
 
   @impl true
   def init(_opts) do
-    if :ets.whereis(@table) == :undefined do
-      :ets.new(@table, [:set, :named_table, :public, read_concurrency: true])
+    ensure_partition_supervisor()
+    {:ok, %{}}
+  end
+
+  defp ensure_partition_supervisor do
+    if Process.whereis(@partition_name) == nil do
+      partitions = shard_count()
+
+      case PartitionSupervisor.start_link(
+             child_spec: {SCR.AgentContext.Shard, []},
+             name: @partition_name,
+             partitions: partitions
+           ) do
+        {:ok, _pid} -> :ok
+        {:error, {:already_started, _pid}} -> :ok
+        {:error, reason} -> raise "failed to start agent context partitions: #{inspect(reason)}"
+      end
+    else
+      :ok
     end
-
-    cfg = Application.get_env(:scr, :agent_context, [])
-    retention_ms = Keyword.get(cfg, :retention_ms, @default_retention_ms)
-    cleanup_interval_ms = Keyword.get(cfg, :cleanup_interval_ms, @default_cleanup_interval_ms)
-
-    Process.send_after(self(), :cleanup, cleanup_interval_ms)
-
-    {:ok,
-     %{
-       retention_ms: retention_ms,
-       cleanup_interval_ms: cleanup_interval_ms,
-       cleaned_entries: 0
-     }}
   end
 
-  @impl true
-  def handle_call({:upsert, task_id, attrs}, _from, state) do
-    now = DateTime.utc_now()
-
-    context =
-      case get(task_id) do
-        {:ok, existing} ->
-          existing
-          |> Map.merge(attrs)
-          |> Map.put(:updated_at, now)
-
-        {:error, :not_found} ->
-          Map.merge(
-            %{
-              task_id: task_id,
-              status: :queued,
-              findings: [],
-              created_at: now,
-              updated_at: now
-            },
-            attrs
-          )
-      end
-
-    :ets.insert(@table, {task_id, context})
-    {:reply, :ok, state}
+  defp shard_server(task_id) do
+    {:via, PartitionSupervisor, {@partition_name, task_id}}
   end
 
-  def handle_call({:add_finding, task_id, finding}, _from, state) do
-    now = DateTime.utc_now()
-
-    context =
-      case get(task_id) do
-        {:ok, existing} ->
-          findings = [finding | Map.get(existing, :findings, [])] |> Enum.take(100)
-          existing |> Map.put(:findings, findings) |> Map.put(:updated_at, now)
-
-        {:error, :not_found} ->
-          %{
-            task_id: task_id,
-            status: :in_progress,
-            findings: [finding],
-            created_at: now,
-            updated_at: now
-          }
-      end
-
-    :ets.insert(@table, {task_id, context})
-    {:reply, :ok, state}
+  defp shard_pids do
+    @partition_name
+    |> Supervisor.which_children()
+    |> Enum.map(fn {_, pid, _, _} -> pid end)
+    |> Enum.filter(&is_pid/1)
+  rescue
+    _ -> []
   end
 
-  def handle_call({:set_status, task_id, status}, _from, state) do
-    now = DateTime.utc_now()
-
-    context =
-      case get(task_id) do
-        {:ok, existing} ->
-          existing |> Map.put(:status, status) |> Map.put(:updated_at, now)
-
-        {:error, :not_found} ->
-          %{task_id: task_id, status: status, findings: [], created_at: now, updated_at: now}
-      end
-
-    :ets.insert(@table, {task_id, context})
-    {:reply, :ok, state}
-  end
-
-  def handle_call(:clear, _from, state) do
-    :ets.delete_all_objects(@table)
-    {:reply, :ok, state}
-  end
-
-  def handle_call(:stats, _from, state) do
-    {:reply, %{entries: :ets.info(@table, :size), cleaned_entries: state.cleaned_entries}, state}
-  end
-
-  def handle_call(:run_cleanup, _from, state) do
-    {deleted, next_state} = cleanup(state)
-    {:reply, {:ok, deleted}, next_state}
-  end
-
-  @impl true
-  def handle_info(:cleanup, state) do
-    {_deleted, next_state} = cleanup(state)
-    Process.send_after(self(), :cleanup, state.cleanup_interval_ms)
-    {:noreply, next_state}
-  end
-
-  defp cleanup(state) do
-    now = DateTime.utc_now()
-
-    deleted =
-      :ets.foldl(
-        fn {task_id, context}, acc ->
-          updated_at = Map.get(context, :updated_at, Map.get(context, :created_at, now))
-          stale_ms = DateTime.diff(now, updated_at, :millisecond)
-
-          if stale_ms > state.retention_ms do
-            :ets.delete(@table, task_id)
-            acc + 1
-          else
-            acc
-          end
-        end,
-        0,
-        @table
-      )
-
-    {deleted, %{state | cleaned_entries: state.cleaned_entries + deleted}}
+  defp shard_count do
+    SCR.ConfigCache.get(:agent_context, [])
+    |> Keyword.get(:shards, @default_shards)
   end
 end

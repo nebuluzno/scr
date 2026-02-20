@@ -125,7 +125,7 @@ defmodule SCR.Distributed.SpecRegistry do
   end
 
   defp enabled? do
-    cfg = Application.get_env(:scr, :distributed, [])
+    cfg = SCR.ConfigCache.get(:distributed, [])
     Keyword.get(cfg, :enabled, false)
   end
 end

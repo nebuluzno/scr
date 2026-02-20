@@ -98,7 +98,7 @@ defmodule SCR.Distributed.HandoffManager do
   end
 
   defp enabled? do
-    cfg = Application.get_env(:scr, :distributed, [])
+    cfg = SCR.ConfigCache.get(:distributed, [])
     Keyword.get(cfg, :enabled, false) and Keyword.get(cfg, :handoff_enabled, true)
   end
 end

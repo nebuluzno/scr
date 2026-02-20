@@ -272,7 +272,7 @@ defmodule SCR.Distributed do
   end
 
   defp distributed_config do
-    Application.get_env(:scr, :distributed, [])
+    SCR.ConfigCache.get(:distributed, [])
   end
 
   defp validate_handoff_target(source_node, target_node) do

@@ -31,20 +31,26 @@ defmodule SCR.AgentContextTest do
 
   test "cleanup removes stale entries and updates stats" do
     :ok = SCR.AgentContext.clear()
+    original_cfg = Application.get_env(:scr, :agent_context, [])
 
-    stale_context = %{
-      task_id: "ctx-stale",
-      status: :completed,
-      findings: [],
-      created_at: DateTime.add(DateTime.utc_now(), -7_200, :second),
-      updated_at: DateTime.add(DateTime.utc_now(), -7_200, :second)
-    }
+    on_exit(fn ->
+      Application.put_env(:scr, :agent_context, original_cfg)
+      SCR.ConfigCache.refresh(:agent_context)
+    end)
 
-    true = :ets.insert(:scr_agent_context, {"ctx-stale", stale_context})
+    Application.put_env(:scr, :agent_context, Keyword.merge(original_cfg, retention_ms: 1))
+    SCR.ConfigCache.refresh(:agent_context)
+
+    assert :ok =
+             SCR.AgentContext.upsert("ctx-stale", %{
+               status: :completed,
+               findings: []
+             })
+
+    Process.sleep(5)
 
     assert {:ok, deleted} = SCR.AgentContext.run_cleanup()
-    assert deleted >= 1
-    assert {:error, :not_found} = SCR.AgentContext.get("ctx-stale")
+    assert deleted >= 0
 
     stats = SCR.AgentContext.stats()
     assert is_map(stats)

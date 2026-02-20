@@ -100,23 +100,23 @@ defmodule SCR.HealthCheck do
       fn agent_id, acc ->
         case check_health(agent_id) do
           :ok ->
-            emit_check_event(:ok)
+            emit_check_event(:ok, agent_id)
             acc
 
           {:error, reason} ->
-            emit_check_event(reason)
+            emit_check_event(reason, agent_id)
             Logger.warning("[health] unhealthy agent=#{agent_id} reason=#{inspect(reason)}")
 
             healed? =
               if acc.auto_heal do
                 case heal_agent(agent_id) do
                   :ok ->
-                    emit_heal_event(:ok)
+                    emit_heal_event(:ok, agent_id)
                     Logger.warning("[health] auto-healed agent=#{agent_id}")
                     true
 
                   {:error, heal_reason} ->
-                    emit_heal_event(heal_reason)
+                    emit_heal_event(heal_reason, agent_id)
 
                     Logger.warning(
                       "[health] heal failed agent=#{agent_id} reason=#{inspect(heal_reason)}"
@@ -144,19 +144,19 @@ defmodule SCR.HealthCheck do
 
   defp heartbeat_stale?(_, _), do: true
 
-  defp emit_check_event(result) do
+  defp emit_check_event(result, agent_id) do
     :telemetry.execute(
       [:scr, :health, :check],
       %{count: 1},
-      %{result: normalize_health_result(result)}
+      %{result: normalize_health_result(result), agent_id: agent_id}
     )
   end
 
-  defp emit_heal_event(result) do
+  defp emit_heal_event(result, agent_id) do
     :telemetry.execute(
       [:scr, :health, :heal],
       %{count: 1},
-      %{result: normalize_health_result(result)}
+      %{result: normalize_health_result(result), agent_id: agent_id}
     )
   end
 

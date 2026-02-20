@@ -187,7 +187,7 @@ defmodule SCR.Tools.Registry do
          {:ok, response} <- execute_with_descriptor(descriptor, normalized_params, ctx),
          :ok <- Policy.validate_result_payload(response, ctx) do
       Logger.info("tool.execute.ok name=#{tool_name}")
-      emit_tool_execute_event(tool_name, descriptor.source, :ok, started_at)
+      emit_tool_execute_event(tool_name, descriptor.source, :ok, started_at, ctx)
       {:reply, {:ok, response}, state}
     else
       {:error, :mcp_unavailable} ->
@@ -196,15 +196,15 @@ defmodule SCR.Tools.Registry do
         if fallback_to_native_enabled?() do
           case fallback_native(tool_name, normalized_params, ctx, state) do
             {:ok, response} ->
-              emit_tool_execute_event(tool_name, :native, :ok, started_at)
+              emit_tool_execute_event(tool_name, :native, :ok, started_at, ctx)
               {:reply, {:ok, response}, state}
 
             {:error, reason} ->
-              emit_tool_execute_event(tool_name, :mcp, reason, started_at)
+              emit_tool_execute_event(tool_name, :mcp, reason, started_at, ctx)
               {:reply, {:error, reason}, state}
           end
         else
-          emit_tool_execute_event(tool_name, :mcp, :mcp_unavailable, started_at)
+          emit_tool_execute_event(tool_name, :mcp, :mcp_unavailable, started_at, ctx)
           {:reply, {:error, :mcp_unavailable}, state}
         end
 
@@ -215,7 +215,8 @@ defmodule SCR.Tools.Registry do
           tool_name,
           resolve_source_hint(tool_name, ctx, state),
           reason,
-          started_at
+          started_at,
+          ctx
         )
 
         {:reply, {:error, reason}, state}
@@ -414,12 +415,12 @@ defmodule SCR.Tools.Registry do
   end
 
   defp fallback_to_native_enabled? do
-    tools_cfg = Application.get_env(:scr, :tools, [])
+    tools_cfg = SCR.ConfigCache.get(:tools, [])
     Keyword.get(tools_cfg, :fallback_to_native, false)
   end
 
   defp enforce_rate_limit(tool_name) do
-    cfg = Application.get_env(:scr, :tool_rate_limit, [])
+    cfg = SCR.ConfigCache.get(:tool_rate_limit, [])
 
     if Keyword.get(cfg, :enabled, true) and Process.whereis(SCR.Tools.RateLimiter) do
       {max_calls, window_ms} = tool_rate_limit_settings(tool_name, cfg)
@@ -441,13 +442,19 @@ defmodule SCR.Tools.Registry do
     end
   end
 
-  defp emit_tool_execute_event(tool_name, source, result, started_at_ms) do
+  defp emit_tool_execute_event(tool_name, source, result, started_at_ms, ctx) do
     duration_ms = max(System.monotonic_time(:millisecond) - started_at_ms, 0)
 
     :telemetry.execute(
       [:scr, :tools, :execute],
       %{count: 1, duration_ms: duration_ms},
-      %{tool: tool_name, source: source || :unknown, result: telemetry_result(result)}
+      %{
+        tool: tool_name,
+        source: source || :unknown,
+        result: telemetry_result(result),
+        agent_id: Map.get(ctx, :agent_id, "unknown"),
+        task_id: Map.get(ctx, :task_id, "unknown")
+      }
     )
   end
 

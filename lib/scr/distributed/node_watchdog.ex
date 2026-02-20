@@ -170,6 +170,6 @@ defmodule SCR.Distributed.NodeWatchdog do
   defp now_ms, do: System.monotonic_time(:millisecond)
 
   defp distributed_config do
-    Application.get_env(:scr, :distributed, [])
+    SCR.ConfigCache.get(:distributed, [])
   end
 end

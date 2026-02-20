@@ -395,7 +395,7 @@ defmodule SCR.Agents.PlannerAgent do
   end
 
   defp task_queue_server do
-    Application.get_env(:scr, :task_queue, []) |> Keyword.get(:server, SCR.TaskQueue)
+    SCR.ConfigCache.get(:task_queue, []) |> Keyword.get(:server, SCR.TaskQueue)
   end
 
   defp execute_subtasks(state) do

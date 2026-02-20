@@ -197,5 +197,5 @@ defmodule SCR.Tools.Policy do
 
   defp mcp_tool_allowlisted?(_descriptor, _cfg), do: true
 
-  defp tools_config, do: Application.get_env(:scr, :tools, [])
+  defp tools_config, do: SCR.ConfigCache.get(:tools, [])
 end

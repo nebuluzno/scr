@@ -31,6 +31,12 @@ config :scr, :llm,
   temperature: 0.7,
   max_retries: 3
 
+task_queue_backend =
+  case System.get_env("SCR_TASK_QUEUE_BACKEND", "memory") do
+    "dets" -> :dets
+    _ -> :memory
+  end
+
 config :logger,
   level: :info
 
@@ -41,6 +47,10 @@ if log_format == "json" do
 end
 
 config :scr, SCR.Observability.OTelBridge, enabled: otel_enabled
+
+config :scr, :task_queue,
+  backend: task_queue_backend,
+  dets_path: System.get_env("SCR_TASK_QUEUE_DETS_PATH", "tmp/task_queue.dets")
 
 config :scr, :distributed,
   enabled: distributed_enabled,

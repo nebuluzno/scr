@@ -19,6 +19,7 @@ defmodule SCR do
 
   def start(_type, _args) do
     IO.puts("\n🔧 Starting SCR Application...")
+    :ok = SCR.ConfigCache.refresh_all()
 
     # Create supervisor tree
     children =
@@ -29,6 +30,8 @@ defmodule SCR do
         cluster_supervisor_child(),
         # Telemetry poller + Prometheus reporter
         {SCR.Telemetry, []},
+        # Runtime telemetry event stream
+        {SCR.Telemetry.Stream, []},
         # Optional OpenTelemetry export bridge
         {SCR.Observability.OTelBridge, []},
         # Start LLM Cache and Metrics

@@ -65,9 +65,42 @@ defmodule SCR.TaskQueueTest do
     assert {:ok, %{task_id: "event-1"}} = TaskQueue.dequeue(server)
 
     assert_receive {:telemetry_event, [:scr, :task_queue, :enqueue], %{count: 1},
-                    %{priority: :normal, result: :accepted}}
+                    %{priority: :normal, result: :accepted, task_type: "unknown"}}
 
     assert_receive {:telemetry_event, [:scr, :task_queue, :dequeue], %{count: 1},
-                    %{priority: :normal, result: :ok}}
+                    %{priority: :normal, result: :ok, task_type: "unknown"}}
+  end
+
+  test "replays persisted tasks from dets backend" do
+    path = "/tmp/scr_task_queue_test_#{System.unique_integer([:positive])}.dets"
+    server1 = :"task_queue_dets_1_#{System.unique_integer([:positive])}"
+    server2 = :"task_queue_dets_2_#{System.unique_integer([:positive])}"
+
+    {:ok, pid1} =
+      start_supervised(%{
+        id: {:task_queue_dets, server1},
+        start:
+          {TaskQueue, :start_link,
+           [[name: server1, max_size: 10, backend: :dets, dets_path: path]]}
+      })
+
+    on_exit(fn -> File.rm(path) end)
+
+    assert {:ok, _} = TaskQueue.enqueue(%{task_id: "persist-1"}, :high, server1)
+    assert {:ok, _} = TaskQueue.enqueue(%{task_id: "persist-2"}, :normal, server1)
+
+    GenServer.stop(pid1)
+
+    {:ok, _pid2} =
+      start_supervised(%{
+        id: {:task_queue_dets, server2},
+        start:
+          {TaskQueue, :start_link,
+           [[name: server2, max_size: 10, backend: :dets, dets_path: path]]}
+      })
+
+    assert {:ok, %{task_id: "persist-1"}} = TaskQueue.dequeue(server2)
+    assert {:ok, %{task_id: "persist-2"}} = TaskQueue.dequeue(server2)
+    assert :empty = TaskQueue.dequeue(server2)
   end
 end

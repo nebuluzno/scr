@@ -4,7 +4,7 @@ defmodule SCR.MixProject do
   def project do
     [
       app: :scr,
-      version: "0.3.0-alpha",
+      version: "0.4.0-alpha",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps()

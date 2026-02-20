@@ -30,7 +30,7 @@ defmodule SCR.Tools.ExecutionContext do
   Builds an execution context with defaults from app config.
   """
   def new(attrs \\ %{}) when is_map(attrs) do
-    tools_cfg = Application.get_env(:scr, :tools, [])
+    tools_cfg = SCR.ConfigCache.get(:tools, [])
     default_mode = Keyword.get(tools_cfg, :safety_mode, :strict)
 
     %__MODULE__{

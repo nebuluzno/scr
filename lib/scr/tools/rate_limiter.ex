@@ -58,7 +58,7 @@ defmodule SCR.Tools.RateLimiter do
       ])
     end
 
-    cfg = Application.get_env(:scr, :tool_rate_limit, [])
+    cfg = SCR.ConfigCache.get(:tool_rate_limit, [])
     cleanup_interval_ms = Keyword.get(cfg, :cleanup_interval_ms, @default_cleanup_interval_ms)
     Process.send_after(self(), :cleanup, cleanup_interval_ms)
 

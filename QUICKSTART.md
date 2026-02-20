@@ -180,6 +180,20 @@ SCR.Distributed.NodeWatchdog.quarantine(Node.list() |> List.first(), 60_000)
 SCR.Distributed.status()
 ```
 
+## 4e. Optional: durable queue replay smoke test
+In IEx:
+```elixir
+Application.put_env(:scr, :task_queue,
+  max_size: 100,
+  backend: :dets,
+  dets_path: "tmp/task_queue.dets"
+)
+
+SCR.ConfigCache.refresh(:task_queue)
+```
+
+Restart runtime and verify queued tasks replay from DETS.
+
 ## 5. Useful IEx checks
 ```bash
 iex -S mix
@@ -197,6 +211,7 @@ SCR.Tools.RateLimiter.stats()
 SCR.AgentContext.stats()
 SCR.AgentContext.list() |> Enum.take(3)
 SCR.Distributed.status()
+SCR.Telemetry.Stream.recent(20)
 ```
 
 ### Optional: test execution-context propagation

@@ -78,6 +78,8 @@ All inter-agent communication uses `SCR.Message` struct:
 - `SCR.Distributed.SpecRegistry` - Cross-node agent spec replication
 - `SCR.Distributed.HandoffManager` - Node-down handoff orchestrator
 - `SCR.Distributed.PeerManager` - Peer connectivity manager
+- `SCR.Distributed.NodeWatchdog` - Flapping-node quarantine and placement guardrails
+- `SCR.ConfigCache` - Persistent-term config cache for hot-path lookups
 
 ### LLM Integration (`lib/scr/llm/`)
 
@@ -93,6 +95,7 @@ All inter-agent communication uses `SCR.Message` struct:
 - `SCR.Tools.Registry` - Tool registration and discovery
 - `SCR.Tools.Behaviour` - Behaviour for tool modules
 - Tools: `Calculator`, `HTTPRequest`, `Search`, `FileOperations`, `Time`, `Weather`, `CodeExecution`
+- `SCR.Telemetry.Stream` - Live telemetry event stream (recent-event ring buffer + PubSub)
 
 ### Web Interface (`lib/scr_web/`)
 
@@ -122,6 +125,8 @@ SCR_DISTRIBUTED_FLAP_WINDOW_MS=60000
 SCR_DISTRIBUTED_FLAP_THRESHOLD=3
 SCR_DISTRIBUTED_QUARANTINE_MS=120000
 RELEASE_COOKIE=replace-with-strong-cookie
+SCR_TASK_QUEUE_BACKEND=memory          # memory | dets
+SCR_TASK_QUEUE_DETS_PATH=tmp/task_queue.dets
 ```
 
 ### Config Files
@@ -301,10 +306,12 @@ See `SCR_Improvements.md` for planned features:
 - `SCR_UseCases.md` - Usage examples
 - `SCR_LLM_Documentation.txt` - LLM integration details
 - `SCR_Improvements.md` - Roadmap and planned features
+- `FUTURE_TODO.md` - Forward-looking backlog after current milestone
+- `SCR_Competitive_Comparison.md` - Positioning against other runtime options
 - `plans/phoenix_web_interface_plan.md` - Web interface design
 
 ## Version
 
-Current version: **v0.3.0-alpha**
+Current version: **v0.4.0-alpha**
 
 This is an early alpha release for feedback and testing. Expect breaking changes.
