@@ -151,6 +151,14 @@ Shutdown:
 docker compose -f docker-compose.observability.yml down
 ```
 
+Make shortcuts:
+```bash
+make obs-up
+make obs-down
+make obs-logs
+make obs-reset
+```
+
 ### Optional: test tool chaining utility
 ```elixir
 SCR.Tools.Chain.execute(

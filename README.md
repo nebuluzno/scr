@@ -243,6 +243,11 @@ Start stack:
 docker compose -f docker-compose.observability.yml up -d
 ```
 
+Or with Make:
+```bash
+make obs-up
+```
+
 Access:
 - Prometheus: [http://localhost:9090](http://localhost:9090)
 - Alertmanager: [http://localhost:9093](http://localhost:9093)
@@ -252,6 +257,15 @@ Stop stack:
 ```bash
 docker compose -f docker-compose.observability.yml down
 ```
+
+Or with Make:
+```bash
+make obs-down
+```
+
+Other useful targets:
+- `make obs-logs`
+- `make obs-reset`
 
 ## MCP Smoke Check (Dev)
 Use this to validate a real MCP server integration locally:

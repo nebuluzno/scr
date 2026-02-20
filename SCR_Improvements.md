@@ -34,6 +34,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Added tool rate-limit telemetry and MCP health/circuit metrics + starter Grafana dashboard JSON.
 - `[done]` Added Prometheus alert rule templates + Alertmanager starter config for core runtime alerts.
 - `[done]` Added one-command observability stack (`docker-compose.observability.yml`) with Prometheus/Alertmanager/Grafana provisioning.
+- `[done]` Added `Makefile` observability targets (`obs-up`, `obs-down`, `obs-logs`, `obs-reset`) for faster operations.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -68,6 +69,7 @@ This document outlines potential improvements and optimizations for the Supervis
   3. MCP + safety/rate limits + context debug
   4. Observability stack bring-up + verification
 - `[planned]` Expand tutorials with custom-tool authoring and full multi-agent debugging labs.
+- `[planned]` Version update prep: finalize release notes + align docs (`v0.1.0-alpha` -> next target version) + tag checklist.
 
 ## Current Baseline Commands
 

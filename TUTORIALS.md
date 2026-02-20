@@ -137,6 +137,10 @@ mix phx.server
 ```bash
 docker compose -f docker-compose.observability.yml up -d
 ```
+Alternative:
+```bash
+make obs-up
+```
 3. Open [http://localhost:9090/targets](http://localhost:9090/targets).
 4. Confirm `scr_app` target is `UP`.
 5. Open [http://localhost:3000](http://localhost:3000).
@@ -151,6 +155,10 @@ curl -s http://localhost:9093/api/v2/alerts | jq 'length'
 11. Stop observability stack when done:
 ```bash
 docker compose -f docker-compose.observability.yml down
+```
+Alternative:
+```bash
+make obs-down
 ```
 
 ### Expected Results
