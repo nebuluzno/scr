@@ -69,7 +69,7 @@ This document outlines potential improvements and optimizations for the Supervis
   3. MCP + safety/rate limits + context debug
   4. Observability stack bring-up + verification
 - `[planned]` Expand tutorials with custom-tool authoring and full multi-agent debugging labs.
-- `[planned]` Version update prep: finalize release notes + align docs (`v0.1.0-alpha` -> next target version) + tag checklist.
+- `[done]` Version update prep checklist added (`RELEASE_CHECKLIST.md`) including validation, version alignment, release notes, and tagging.
 
 ## Current Baseline Commands
 
