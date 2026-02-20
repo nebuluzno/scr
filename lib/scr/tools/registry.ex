@@ -278,7 +278,11 @@ defmodule SCR.Tools.Registry do
         tool: descriptor.name,
         server: descriptor.server,
         latency_ms: latency_ms,
-        trace_id: ctx.trace_id
+        trace_id: ctx.trace_id,
+        task_id: ctx.task_id,
+        parent_task_id: ctx.parent_task_id,
+        subtask_id: ctx.subtask_id,
+        agent_id: ctx.agent_id
       }
     }
   end

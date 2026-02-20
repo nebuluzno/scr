@@ -8,6 +8,8 @@ defmodule SCR.Tools.ExecutionContext do
     :mode,
     :agent_id,
     :task_id,
+    :parent_task_id,
+    :subtask_id,
     :trace_id,
     :source
   ]
@@ -18,6 +20,8 @@ defmodule SCR.Tools.ExecutionContext do
           mode: mode(),
           agent_id: String.t() | nil,
           task_id: String.t() | nil,
+          parent_task_id: String.t() | nil,
+          subtask_id: String.t() | nil,
           trace_id: String.t() | nil,
           source: :native | :mcp | nil
         }
@@ -33,6 +37,8 @@ defmodule SCR.Tools.ExecutionContext do
       mode: Map.get(attrs, :mode, default_mode),
       agent_id: Map.get(attrs, :agent_id),
       task_id: Map.get(attrs, :task_id),
+      parent_task_id: Map.get(attrs, :parent_task_id),
+      subtask_id: Map.get(attrs, :subtask_id),
       trace_id: Map.get(attrs, :trace_id, UUID.uuid4()),
       source: Map.get(attrs, :source)
     }

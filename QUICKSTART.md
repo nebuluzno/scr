@@ -102,6 +102,21 @@ SCR.AgentContext.stats()
 SCR.AgentContext.list() |> Enum.take(3)
 ```
 
+### Optional: test execution-context propagation
+```elixir
+ctx =
+  SCR.Tools.ExecutionContext.new(%{
+    mode: :strict,
+    agent_id: "worker_1",
+    task_id: "task_main_1",
+    parent_task_id: "task_main_1",
+    subtask_id: "subtask_1",
+    trace_id: "trace_demo_1"
+  })
+
+SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, "b" => 1}, ctx)
+```
+
 ### Optional: verify tool rate limiter
 ```elixir
 Application.put_env(:scr, :tool_rate_limit,

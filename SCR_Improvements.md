@@ -26,6 +26,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Rate limiter maintenance (`SCR.Tools.RateLimiter` periodic cleanup + limiter stats).
 - `[done]` Queue visibility/control in dashboard (stats + pause/resume/clear/drain actions).
 - `[done]` Agent context lifecycle policy (retention + periodic cleanup + context stats).
+- `[done]` Execution-context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across planner/worker/tool path.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -40,7 +41,14 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Queue visibility and controls in Web UI: `SCR.TaskQueue.stats/0`, priority counts, and admin actions (`pause`, `resume`, `drain`, `clear`).
 - `[done]` Agent context lifecycle policy: retention + cleanup job in `SCR.AgentContext`.
 - `[done]` Rate limiter maintenance: periodic cleanup of expired ETS buckets + limiter stats API.
-- `[planned]` Execution-context propagation: include `trace_id`, `parent_task_id`, and `subtask_id` across planner/worker/tool path for better debugging.
+- `[done]` Execution-context propagation: `trace_id`, `parent_task_id`, and `subtask_id` are propagated across planner/worker/tool path.
+
+## Tutorial Track (Next Docs Phase)
+- `[planned]` Create step-by-step tutorials once core runtime is stable:
+  1. Getting started flow (CLI + Web UI)
+  2. Tool safety modes (strict/demo) and rate limits
+  3. MCP integration walkthrough (filesystem + one API server)
+  4. Debugging with queue stats, health probes, and trace IDs
 
 ## Current Baseline Commands
 

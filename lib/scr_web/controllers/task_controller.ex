@@ -20,6 +20,7 @@ defmodule SCRWeb.TaskController do
     else
       # Generate a task ID
       task_id = UUID.uuid4()
+      trace_id = UUID.uuid4()
       priority = SCR.TaskQueue.normalize_priority(Map.get(task_params, "priority", "normal"))
 
       # Ensure MemoryAgent is running (ignore if already started)
@@ -41,14 +42,16 @@ defmodule SCRWeb.TaskController do
         description: description,
         type: parse_task_type(Map.get(task_params, "type", "general")),
         priority: priority,
-        max_workers: parse_max_workers(Map.get(task_params, "max_workers", "2"))
+        max_workers: parse_max_workers(Map.get(task_params, "max_workers", "2")),
+        trace_id: trace_id
       }
 
       _ =
         SCR.AgentContext.upsert(to_string(task_id), %{
           description: description,
           status: :queued,
-          source: :web
+          source: :web,
+          trace_id: trace_id
         })
 
       queue_server =

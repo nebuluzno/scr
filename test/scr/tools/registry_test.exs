@@ -46,6 +46,27 @@ defmodule SCR.Tools.RegistryTest do
     assert Enum.any?(defs, fn d -> get_in(d, [:function, :name]) == "calculator" end)
   end
 
+  test "execution metadata includes propagated context identifiers" do
+    ctx =
+      ExecutionContext.new(%{
+        mode: :strict,
+        agent_id: "worker_ctx",
+        task_id: "task_main_1",
+        parent_task_id: "parent_1",
+        subtask_id: "subtask_1",
+        trace_id: "trace_ctx_1"
+      })
+
+    assert {:ok, payload} =
+             Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, "b" => 1}, ctx)
+
+    assert payload.meta.trace_id == "trace_ctx_1"
+    assert payload.meta.task_id == "task_main_1"
+    assert payload.meta.parent_task_id == "parent_1"
+    assert payload.meta.subtask_id == "subtask_1"
+    assert payload.meta.agent_id == "worker_ctx"
+  end
+
   test "tool execution is rate limited when configured" do
     Application.put_env(:scr, :tool_rate_limit,
       enabled: true,

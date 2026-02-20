@@ -11,6 +11,7 @@ It provides:
 - LLM execution (Ollama by default, mock provider for tests)
 - Unified tool execution (native tools + MCP integration path)
 - Tool rate limiting guardrail (`SCR.Tools.RateLimiter`)
+- Execution context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across tool calls
 - Phoenix Web UI for monitoring, tasks, memory, and metrics
 
 ## Quick Links
@@ -167,6 +168,19 @@ SCR.Agent.health_check("planner_1")
 SCR.Tools.RateLimiter.stats()
 SCR.AgentContext.stats()
 SCR.AgentContext.list() |> Enum.take(3)
+
+# Example context-aware tool call
+ctx =
+  SCR.Tools.ExecutionContext.new(%{
+    mode: :strict,
+    agent_id: "worker_1",
+    task_id: "task_main_1",
+    parent_task_id: "task_main_1",
+    subtask_id: "subtask_1",
+    trace_id: "trace_demo_1"
+  })
+
+SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 2, "b" => 2}, ctx)
 ```
 
 ## MCP Smoke Check (Dev)

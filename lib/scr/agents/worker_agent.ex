@@ -44,9 +44,18 @@ defmodule SCR.Agents.WorkerAgent do
     task_type = Map.get(task_data, :type, :research)
     description = Map.get(task_data, :description, "")
     task_id = Map.get(task_data, :task_id, UUID.uuid4())
+    parent_task_id = Map.get(task_data, :parent_task_id)
+    subtask_id = Map.get(task_data, :subtask_id, task_id)
+    trace_id = Map.get(task_data, :trace_id, UUID.uuid4())
 
     # Process the task using LLM
-    result = process_task_with_llm(task_type, description, task_id)
+    result =
+      process_task_with_llm(task_type, description, task_id, %{
+        worker_agent_id: state.agent_id,
+        parent_task_id: parent_task_id,
+        subtask_id: subtask_id,
+        trace_id: trace_id
+      })
 
     _ =
       AgentContext.add_finding(to_string(task_id), %{
@@ -61,6 +70,9 @@ defmodule SCR.Agents.WorkerAgent do
     result_msg =
       Message.result(state.agent_id, from, %{
         task_id: task_id,
+        parent_task_id: parent_task_id,
+        subtask_id: subtask_id,
+        trace_id: trace_id,
         result: result,
         status: :completed
       })
@@ -108,10 +120,10 @@ defmodule SCR.Agents.WorkerAgent do
 
   # Private functions
 
-  defp process_task_with_llm(task_type, description, task_id) do
+  defp process_task_with_llm(task_type, description, task_id, trace_ctx) do
     IO.puts("🤖 Using LLM for #{task_type} task: #{description}")
 
-    context = execution_context(task_id)
+    context = execution_context(task_id, trace_ctx)
     tools = Registry.get_tool_definitions(context)
     tools_info = get_tools_info(context)
 
@@ -370,13 +382,18 @@ defmodule SCR.Agents.WorkerAgent do
     }
   end
 
-  defp execution_context(task_id) do
+  defp execution_context(task_id, trace_ctx) do
     ExecutionContext.new(%{
-      agent_id: "worker",
+      agent_id: to_string(Map.get(trace_ctx, :worker_agent_id, "worker")),
       task_id: to_string(task_id),
-      trace_id: UUID.uuid4()
+      parent_task_id: maybe_to_string(Map.get(trace_ctx, :parent_task_id)),
+      subtask_id: maybe_to_string(Map.get(trace_ctx, :subtask_id)),
+      trace_id: Map.get(trace_ctx, :trace_id, UUID.uuid4())
     })
   end
+
+  defp maybe_to_string(nil), do: nil
+  defp maybe_to_string(value), do: to_string(value)
 
   defp summarize_result(result) when is_map(result) do
     cond do

@@ -79,7 +79,8 @@ defmodule SCR.Agents.PlannerAgent do
           AgentContext.upsert(to_string(task_data.task_id), %{
             description: task_data.description,
             priority: priority,
-            status: :queued
+            status: :queued,
+            trace_id: task_data.trace_id
           })
 
         {:noreply, maybe_start_next_task(internal_state, state.agent_id)}
@@ -359,7 +360,8 @@ defmodule SCR.Agents.PlannerAgent do
       AgentContext.upsert(to_string(task_data.task_id), %{
         description: task_data.description,
         status: :planning,
-        subtasks: subtasks
+        subtasks: subtasks,
+        trace_id: task_data.trace_id
       })
 
     store_in_memory(:task, %{task_data: task_data, subtasks: subtasks})
@@ -381,7 +383,8 @@ defmodule SCR.Agents.PlannerAgent do
       description: Map.get(task_data, :description, ""),
       type: Map.get(task_data, :type, :general),
       priority: Map.get(task_data, :priority, :normal),
-      max_workers: Map.get(task_data, :max_workers, 2)
+      max_workers: Map.get(task_data, :max_workers, 2),
+      trace_id: Map.get(task_data, :trace_id, UUID.uuid4())
     }
   end
 
@@ -415,6 +418,9 @@ defmodule SCR.Agents.PlannerAgent do
       task_msg =
         Message.task(state.agent_id, agent_id, %{
           task_id: subtask.task_id,
+          parent_task_id: get_in(state, [:current_task, :task_id]),
+          subtask_id: subtask.task_id,
+          trace_id: get_in(state, [:current_task, :trace_id]),
           type: agent_type,
           description: subtask.description
         })
