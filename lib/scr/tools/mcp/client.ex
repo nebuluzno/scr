@@ -1,6 +1,6 @@
 defmodule SCR.Tools.MCP.Client do
   @moduledoc """
-  Minimal MCP stdio JSON-RPC client using Content-Length framed messages.
+  Minimal MCP stdio JSON-RPC client with framing fallback.
   """
 
   @type conn :: %{
@@ -8,7 +8,8 @@ defmodule SCR.Tools.MCP.Client do
           next_id: pos_integer(),
           buffer: binary(),
           default_timeout_ms: pos_integer(),
-          server_name: String.t()
+          server_name: String.t(),
+          mode: :framed | :ndjson
         }
 
   @spec initialize(map()) :: {:ok, conn()} | {:error, term()}
@@ -25,13 +26,44 @@ defmodule SCR.Tools.MCP.Client do
         next_id: 1,
         buffer: "",
         default_timeout_ms: timeout,
-        server_name: name
+        server_name: name,
+        mode: :framed
       }
 
-      case rpc(conn, "initialize", %{"protocolVersion" => "2024-11-05", "capabilities" => %{}}) do
+      init_params = %{
+        "protocolVersion" => "2024-11-05",
+        "capabilities" => %{},
+        "clientInfo" => %{"name" => "scr", "version" => "0.1.0-alpha"}
+      }
+
+      case rpc(conn, "initialize", init_params) do
         {:ok, _result, conn2} ->
           _ = notify(conn2, "notifications/initialized", %{})
           {:ok, conn2}
+
+        {:error, :timeout, _conn2} ->
+          Port.close(port)
+
+          with {:ok, ndjson_port} <- open_port(executable, args, env, cwd) do
+            ndjson_conn = %{
+              port: ndjson_port,
+              next_id: 1,
+              buffer: "",
+              default_timeout_ms: timeout,
+              server_name: name,
+              mode: :ndjson
+            }
+
+            case rpc(ndjson_conn, "initialize", init_params) do
+              {:ok, _result, conn3} ->
+                _ = notify(conn3, "notifications/initialized", %{})
+                {:ok, conn3}
+
+              {:error, reason, _conn3} ->
+                Port.close(ndjson_port)
+                {:error, reason}
+            end
+          end
 
         {:error, reason, _conn2} ->
           Port.close(port)
@@ -89,7 +121,7 @@ defmodule SCR.Tools.MCP.Client do
 
   defp notify(conn, method, params) do
     payload = %{"jsonrpc" => "2.0", "method" => method, "params" => params}
-    send_message(conn.port, payload)
+    send_message(conn, payload)
   end
 
   defp rpc(conn, method, params, timeout_ms \\ nil) do
@@ -103,24 +135,29 @@ defmodule SCR.Tools.MCP.Client do
     }
 
     timeout = timeout_ms || conn.default_timeout_ms
-    send_message(conn.port, payload)
+    send_message(conn, payload)
 
     conn
     |> Map.put(:next_id, id + 1)
     |> await_response(id, timeout)
   end
 
-  defp send_message(port, payload) do
+  defp send_message(%{port: port, mode: :framed}, payload) do
     body = Jason.encode!(payload)
     header = "Content-Length: #{byte_size(body)}\r\n\r\n"
     Port.command(port, header <> body)
+  end
+
+  defp send_message(%{port: port, mode: :ndjson}, payload) do
+    body = Jason.encode!(payload)
+    Port.command(port, body <> "\n")
   end
 
   defp await_response(conn, id, timeout_ms) do
     receive do
       {port, {:data, data}} when port == conn.port ->
         conn = %{conn | buffer: conn.buffer <> data}
-        {messages, rest} = extract_messages(conn.buffer, [])
+        {messages, rest} = extract_messages(conn.buffer, conn.mode, [])
         conn = %{conn | buffer: rest}
 
         case Enum.find(messages, fn msg -> Map.get(msg, "id") == id end) do
@@ -140,12 +177,37 @@ defmodule SCR.Tools.MCP.Client do
   defp decode_response(%{"result" => result}, conn), do: {:ok, result, conn}
   defp decode_response(_msg, conn), do: {:error, :invalid_response, conn}
 
-  defp extract_messages(buffer, acc) do
+  defp extract_messages(buffer, :framed, acc) do
     case split_one_message(buffer) do
-      {:ok, message, rest} -> extract_messages(rest, [message | acc])
+      {:ok, message, rest} -> extract_messages(rest, :framed, [message | acc])
       :incomplete -> {Enum.reverse(acc), buffer}
-      {:error, _reason, rest} -> extract_messages(rest, acc)
+      {:error, _reason, rest} -> extract_messages(rest, :framed, acc)
     end
+  end
+
+  defp extract_messages(buffer, :ndjson, acc) do
+    lines = String.split(buffer, "\n")
+
+    {complete, incomplete} =
+      if String.ends_with?(buffer, "\n") do
+        {lines, ""}
+      else
+        {Enum.drop(lines, -1), List.last(lines) || ""}
+      end
+
+    messages =
+      complete
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.map(fn line ->
+        case Jason.decode(line) do
+          {:ok, msg} -> msg
+          {:error, _} -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    {Enum.reverse(acc) ++ messages, incomplete}
   end
 
   defp split_one_message(buffer) do

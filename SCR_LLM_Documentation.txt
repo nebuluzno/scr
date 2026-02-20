@@ -17,6 +17,14 @@ mix phx.server
 ```
 Then open `http://localhost:4000` and submit a task from `/tasks/new`.
 
+## MCP Protocol Compatibility Note
+
+SCR's MCP stdio client supports both common MCP transport styles:
+- **Content-Length framed JSON-RPC**
+- **NDJSON (newline-delimited JSON-RPC)**
+
+This is important because MCP servers in the ecosystem do not all use the same stdio framing strategy.
+
 ## Architecture
 
 ```

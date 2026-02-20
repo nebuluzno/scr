@@ -109,6 +109,11 @@ defmodule SCR.Tools.MCP.ServerManager do
       {:ok, %{circuit_open_until: open_until} = _server_state} when open_until > now ->
         {:reply, {:error, :circuit_open}, state}
 
+      {:ok, %{conn: nil} = server_state} ->
+        server_state = %{server_state | healthy: false}
+        state = put_in(state.servers[server], server_state)
+        {:reply, {:error, :mcp_unavailable}, state}
+
       {:ok, server_state} ->
         timeout_ms = server_state.call_timeout_ms || state.call_timeout_ms
 

@@ -113,5 +113,32 @@ mix compile
 mix phx.server
 ```
 
+## MCP Smoke Check (Dev)
+Use this to validate a real MCP server integration locally:
+```bash
+mix scr.mcp.smoke
+```
+You can also call one MCP tool directly:
+```bash
+mix scr.mcp.smoke --server <server_name> --tool <tool_name> --args-json '{"key":"value"}'
+```
+
+### MCP Verified Example (Filesystem)
+Verified locally with the filesystem MCP server from [mcpservers.org](https://mcpservers.org):
+
+```bash
+brew install node
+npm install -g @modelcontextprotocol/server-filesystem
+
+export SCR_MCP_ENABLED=true
+export SCR_MCP_SERVER_NAME=filesystem
+export SCR_MCP_SERVER_COMMAND=mcp-server-filesystem
+export SCR_MCP_SERVER_ARGS="/Users/lars/Documents/SCR"
+export SCR_MCP_ALLOWED_TOOLS="list_directory,read_file,write_file"
+
+mix scr.mcp.smoke
+mix scr.mcp.smoke --server filesystem --tool list_directory --args-json '{"path":"."}'
+```
+
 ## Current Version
 `v0.1.0-alpha`

@@ -8,6 +8,12 @@ mix deps.get
 mix compile
 ```
 
+### Local dependencies for MCP servers
+If you plan to use JavaScript-based MCP servers, install Node.js:
+```bash
+brew install node
+```
+
 ## 2. Run the CLI demo
 ```bash
 mix run -e "SCR.CLI.Demo.main([])"
@@ -51,6 +57,31 @@ Then rerun:
 mix run -e "SCR.CLI.Demo.main([])"
 ```
 
+## 4b. Optional: MCP smoke test (real server)
+Set env vars (verified example with MCP filesystem server):
+```bash
+export SCR_MCP_ENABLED=true
+export SCR_MCP_SERVER_NAME=filesystem
+export SCR_MCP_SERVER_COMMAND=mcp-server-filesystem
+export SCR_MCP_SERVER_ARGS="/Users/lars/Documents/SCR"
+export SCR_MCP_ALLOWED_TOOLS="list_directory,read_file,write_file"
+```
+
+Install server binary:
+```bash
+npm install -g @modelcontextprotocol/server-filesystem
+```
+
+Run smoke validation:
+```bash
+mix scr.mcp.smoke
+```
+
+Optional tool call:
+```bash
+mix scr.mcp.smoke --server filesystem --tool list_directory --args-json '{"path":"."}'
+```
+
 ## 5. Useful IEx checks
 ```bash
 iex -S mix
@@ -82,4 +113,3 @@ mix clean
 mix deps.get
 mix compile
 ```
-

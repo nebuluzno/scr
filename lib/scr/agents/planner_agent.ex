@@ -23,6 +23,13 @@ defmodule SCR.Agents.PlannerAgent do
   alias SCR.Agents.ValidatorAgent
   alias SCR.LLM.Client
 
+  @allowed_agent_types %{
+    "worker" => :worker,
+    "researcher" => :researcher,
+    "writer" => :writer,
+    "validator" => :validator
+  }
+
   # Agent type mappings
   @agent_modules %{
     worker: WorkerAgent,
@@ -202,7 +209,7 @@ defmodule SCR.Agents.PlannerAgent do
     case Jason.decode(llm_response) do
       {:ok, subtasks} when is_list(subtasks) ->
         Enum.map(subtasks, fn subtask ->
-          agent_type = Map.get(subtask, "agent_type", "worker") |> String.to_atom()
+          agent_type = normalize_agent_type(Map.get(subtask, "agent_type", "worker"))
 
           Map.merge(
             %{
@@ -223,6 +230,19 @@ defmodule SCR.Agents.PlannerAgent do
   rescue
     _ -> fallback_decompose_task("")
   end
+
+  @doc false
+  def normalize_agent_type(value) when is_atom(value) do
+    if value in Map.values(@allowed_agent_types), do: value, else: :worker
+  end
+
+  def normalize_agent_type(value) when is_binary(value) do
+    value
+    |> String.downcase()
+    |> then(&Map.get(@allowed_agent_types, &1, :worker))
+  end
+
+  def normalize_agent_type(_), do: :worker
 
   defp fallback_decompose_task(description) do
     decompose_task(%{description: description})

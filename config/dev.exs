@@ -13,6 +13,46 @@ config :scr, :llm,
   timeout: 120_000,
   temperature: 0.7
 
+# MCP (dev-only, env-driven)
+# Example:
+#   export SCR_MCP_ENABLED=true
+#   export SCR_MCP_SERVER_NAME=filesystem
+#   export SCR_MCP_SERVER_COMMAND=npx
+#   export SCR_MCP_SERVER_ARGS="-y,@modelcontextprotocol/server-filesystem,/Users/lars/Documents/SCR"
+#   export SCR_MCP_ALLOWED_TOOLS="read_file,list_directory"
+mcp_enabled = System.get_env("SCR_MCP_ENABLED", "false") == "true"
+mcp_server_name = System.get_env("SCR_MCP_SERVER_NAME", "dev_mcp")
+mcp_server_command = System.get_env("SCR_MCP_SERVER_COMMAND", "")
+
+mcp_server_args =
+  System.get_env("SCR_MCP_SERVER_ARGS", "")
+  |> String.split(",", trim: true)
+
+mcp_allowed_tools =
+  System.get_env("SCR_MCP_ALLOWED_TOOLS", "")
+  |> String.split(",", trim: true)
+
+mcp_server_enabled = mcp_enabled and mcp_server_command != ""
+
+config :scr, :tools,
+  safety_mode: :strict,
+  mcp: [
+    enabled: mcp_enabled,
+    startup_timeout_ms: 10_000,
+    call_timeout_ms: 15_000,
+    refresh_interval_ms: 60_000,
+    servers: %{
+      mcp_server_name => %{
+        command: mcp_server_command,
+        args: mcp_server_args,
+        env: %{},
+        cwd: "/Users/lars/Documents/SCR",
+        allowed_tools: mcp_allowed_tools,
+        enabled: mcp_server_enabled
+      }
+    }
+  ]
+
 # Phoenix configuration
 config :scr, SCRWeb.Endpoint,
   url: [host: "localhost"],
