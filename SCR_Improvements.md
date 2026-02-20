@@ -19,6 +19,9 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Optional CI MCP smoke job (secret-gated).
 - `[done]` Docs quality gate in CI (markdown lint + internal link validation).
 - `[done]` Priority task queue + backpressure (`SCR.TaskQueue`) with planner/task submission wiring.
+- `[done]` Agent health checks + self-heal hook (`SCR.HealthCheck`).
+- `[done]` Tool rate limiting guardrail (`SCR.Tools.RateLimiter`) integrated in tool execution.
+- `[done]` Shared agent task context (`SCR.AgentContext`) with planner/worker updates.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -156,7 +159,7 @@ config :logger, :default_handler,
 
 ## 🔧 Medium Priority Improvements
 
-### 4. Agent Health Checks
+### 4. [done] Agent Health Checks
 **Current State:** Agents can silently fail
 **Improvement:** Implement health check system
 
@@ -184,7 +187,7 @@ end
 - Monitoring integration
 - SLA compliance
 
-### 5. Rate Limiting for Tools
+### 5. [done] Rate Limiting for Tools
 **Current State:** Tools can be called unlimited times
 **Improvement:** Add rate limiting per tool
 
@@ -241,7 +244,7 @@ chain = [
 - Reduced LLM calls
 - Better performance
 
-### 7. Agent Memory Context
+### 7. [done] Agent Memory Context
 **Current State:** Agents don't share context
 **Improvement:** Add shared context for multi-agent tasks
 

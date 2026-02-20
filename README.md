@@ -6,8 +6,11 @@ SCR is a supervised, fault-tolerant multi-agent runtime built with Elixir/OTP.
 It provides:
 - OTP-supervised agents (`Planner`, `Worker`, `Critic`, `Memory`, plus specialized agents)
 - Priority task queue with backpressure (`SCR.TaskQueue`)
+- Agent health monitoring + auto-heal hooks (`SCR.HealthCheck`)
+- Shared task context store for multi-agent coordination (`SCR.AgentContext`)
 - LLM execution (Ollama by default, mock provider for tests)
 - Unified tool execution (native tools + MCP integration path)
+- Tool rate limiting guardrail (`SCR.Tools.RateLimiter`)
 - Phoenix Web UI for monitoring, tasks, memory, and metrics
 
 ## Quick Links

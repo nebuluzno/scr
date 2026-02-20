@@ -21,6 +21,7 @@ defmodule SCR.Agents.PlannerAgent do
   alias SCR.Agents.ResearcherAgent
   alias SCR.Agents.WriterAgent
   alias SCR.Agents.ValidatorAgent
+  alias SCR.AgentContext
   alias SCR.LLM.Client
   alias SCR.TaskQueue
 
@@ -74,10 +75,18 @@ defmodule SCR.Agents.PlannerAgent do
 
     case TaskQueue.enqueue(task_data, priority, queue_server) do
       {:ok, _} ->
+        _ =
+          AgentContext.upsert(to_string(task_data.task_id), %{
+            description: task_data.description,
+            priority: priority,
+            status: :queued
+          })
+
         {:noreply, maybe_start_next_task(internal_state, state.agent_id)}
 
       {:error, :queue_full} ->
         IO.puts("⚠️ Task queue full - dropping task #{task_data[:task_id]}")
+        _ = AgentContext.set_status(to_string(task_data.task_id), :rejected_queue_full)
         {:noreply, internal_state}
     end
   end
@@ -144,6 +153,15 @@ defmodule SCR.Agents.PlannerAgent do
         results: internal_state.results,
         critique: critique_data
       })
+
+      current_task_id = to_string(Map.get(internal_state.current_task || %{}, :task_id, ""))
+      _ = AgentContext.set_status(current_task_id, :completed)
+
+      _ =
+        AgentContext.upsert(current_task_id, %{
+          critique: critique_data,
+          results: internal_state.results
+        })
 
       reset_state = %{
         internal_state
@@ -319,6 +337,13 @@ defmodule SCR.Agents.PlannerAgent do
 
   defp start_main_task(task_data, state, _planner_agent_id) do
     subtasks = decompose_task_with_llm(task_data)
+
+    _ =
+      AgentContext.upsert(to_string(task_data.task_id), %{
+        description: task_data.description,
+        status: :planning,
+        subtasks: subtasks
+      })
 
     store_in_memory(:task, %{task_data: task_data, subtasks: subtasks})
 

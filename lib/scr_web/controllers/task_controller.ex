@@ -44,6 +44,13 @@ defmodule SCRWeb.TaskController do
         max_workers: parse_max_workers(Map.get(task_params, "max_workers", "2"))
       }
 
+      _ =
+        SCR.AgentContext.upsert(to_string(task_id), %{
+          description: description,
+          status: :queued,
+          source: :web
+        })
+
       queue_server =
         Application.get_env(:scr, :task_queue, []) |> Keyword.get(:server, SCR.TaskQueue)
 
@@ -57,6 +64,8 @@ defmodule SCRWeb.TaskController do
           |> redirect(to: ~p"/tasks")
 
         {:error, :queue_full} ->
+          _ = SCR.AgentContext.set_status(to_string(task_id), :rejected_queue_full)
+
           conn
           |> put_flash(:error, "Task queue is full. Please retry in a moment.")
           |> redirect(to: ~p"/tasks/new")

@@ -5,6 +5,11 @@ defmodule SCR.Agents.PlannerAgentTest do
   alias SCR.Message
   alias SCR.TaskQueue
 
+  setup_all do
+    {:ok, _} = Application.ensure_all_started(:scr)
+    :ok
+  end
+
   setup do
     original = Application.get_env(:scr, :task_queue, [])
     server = :"planner_queue_test_#{System.unique_integer([:positive])}"

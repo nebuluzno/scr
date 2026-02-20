@@ -12,6 +12,8 @@ defmodule SCR.Supervisor do
   use DynamicSupervisor
   alias SCR.Agent
 
+  @agent_specs_table :scr_agent_specs
+
   #  @max_restart_attempts 3  # Reserved for future use
 
   def start_link(init_arg) do
@@ -19,6 +21,7 @@ defmodule SCR.Supervisor do
 
     # Start the registry
     Registry.start_link(keys: :unique, name: SCR.AgentRegistry)
+    ensure_agent_specs_table()
 
     # Start dynamic supervisor
     DynamicSupervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
@@ -37,6 +40,7 @@ defmodule SCR.Supervisor do
 
     case DynamicSupervisor.start_child(__MODULE__, spec) do
       {:ok, pid} ->
+        :ets.insert(@agent_specs_table, {agent_id, agent_type, module, init_arg})
         IO.puts("✓ Started #{agent_type} agent: #{agent_id}")
         {:ok, pid}
 
@@ -148,5 +152,24 @@ defmodule SCR.Supervisor do
 
     IO.puts("🔄 Restarting agent: #{agent_id}")
     start_agent(agent_id, agent_type, module, init_arg)
+  end
+
+  @doc """
+  Restart an agent from stored start spec.
+  """
+  def restart_agent(agent_id) do
+    case :ets.lookup(@agent_specs_table, agent_id) do
+      [{^agent_id, agent_type, module, init_arg}] ->
+        restart_agent(agent_id, agent_type, module, init_arg)
+
+      [] ->
+        {:error, :unknown_agent_spec}
+    end
+  end
+
+  defp ensure_agent_specs_table do
+    if :ets.whereis(@agent_specs_table) == :undefined do
+      :ets.new(@agent_specs_table, [:set, :named_table, :public, read_concurrency: true])
+    end
   end
 end

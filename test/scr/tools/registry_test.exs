@@ -3,9 +3,21 @@ defmodule SCR.Tools.RegistryTest do
 
   alias SCR.Tools.ExecutionContext
   alias SCR.Tools.Registry
+  alias SCR.Tools.RateLimiter
 
   setup_all do
     {:ok, _} = Application.ensure_all_started(:scr)
+    :ok
+  end
+
+  setup do
+    original = Application.get_env(:scr, :tool_rate_limit)
+
+    on_exit(fn ->
+      Application.put_env(:scr, :tool_rate_limit, original)
+      :ok = RateLimiter.clear()
+    end)
+
     :ok
   end
 
@@ -31,5 +43,20 @@ defmodule SCR.Tools.RegistryTest do
 
     assert is_list(defs)
     assert Enum.any?(defs, fn d -> get_in(d, [:function, :name]) == "calculator" end)
+  end
+
+  test "tool execution is rate limited when configured" do
+    Application.put_env(:scr, :tool_rate_limit,
+      enabled: true,
+      default_max_calls: 100,
+      default_window_ms: 60_000,
+      per_tool: %{"calculator" => %{max_calls: 1, window_ms: 60_000}}
+    )
+
+    assert {:ok, _} =
+             Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, "b" => 2})
+
+    assert {:error, :rate_limited} =
+             Registry.execute_tool("calculator", %{"operation" => "add", "a" => 2, "b" => 3})
   end
 end

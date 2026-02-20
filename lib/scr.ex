@@ -31,12 +31,18 @@ defmodule SCR do
       {SCR.Tools.Registry, default_tools: @default_tools},
       # Start MCP server manager (no-op unless enabled in config)
       {SCR.Tools.MCP.ServerManager, []},
+      # Tool call rate limiting
+      {SCR.Tools.RateLimiter, []},
       # Start priority task queue with backpressure
       {SCR.TaskQueue, []},
+      # Shared multi-agent task context
+      {SCR.AgentContext, []},
       # Start Phoenix endpoint
       SCRWeb.Endpoint,
       # Start the main SCR supervisor
-      {SCR.Supervisor, []}
+      {SCR.Supervisor, []},
+      # Periodic health checks + self-healing hooks
+      {SCR.HealthCheck, []}
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: SCR.Supervisor.Tree)

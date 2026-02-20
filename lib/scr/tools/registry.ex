@@ -8,6 +8,7 @@ defmodule SCR.Tools.Registry do
 
   alias SCR.Tools.ExecutionContext
   alias SCR.Tools.Policy
+  alias SCR.Tools.RateLimiter
   alias SCR.Tools.ToolDescriptor
 
   @name __MODULE__
@@ -178,6 +179,7 @@ defmodule SCR.Tools.Registry do
 
     with {:ok, descriptor} <- fetch_descriptor(tool_name, ctx, state),
          :ok <- Policy.authorize(descriptor, normalized_params, ctx),
+         :ok <- enforce_rate_limit(descriptor.name),
          {:ok, response} <- execute_with_descriptor(descriptor, normalized_params, ctx),
          :ok <- Policy.validate_result_payload(response, ctx) do
       {:reply, {:ok, response}, state}
@@ -387,5 +389,28 @@ defmodule SCR.Tools.Registry do
   defp fallback_to_native_enabled? do
     tools_cfg = Application.get_env(:scr, :tools, [])
     Keyword.get(tools_cfg, :fallback_to_native, false)
+  end
+
+  defp enforce_rate_limit(tool_name) do
+    cfg = Application.get_env(:scr, :tool_rate_limit, [])
+
+    if Keyword.get(cfg, :enabled, true) and Process.whereis(SCR.Tools.RateLimiter) do
+      {max_calls, window_ms} = tool_rate_limit_settings(tool_name, cfg)
+      RateLimiter.check_rate(tool_name, max_calls, window_ms)
+    else
+      :ok
+    end
+  end
+
+  defp tool_rate_limit_settings(tool_name, cfg) do
+    per_tool = Keyword.get(cfg, :per_tool, %{})
+
+    case Map.get(per_tool, tool_name) do
+      %{max_calls: max_calls, window_ms: window_ms} ->
+        {max_calls, window_ms}
+
+      _ ->
+        {Keyword.get(cfg, :default_max_calls, 60), Keyword.get(cfg, :default_window_ms, 60_000)}
+    end
   end
 end

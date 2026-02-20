@@ -8,6 +8,7 @@ defmodule SCR.Agents.WorkerAgent do
   """
 
   alias SCR.Message
+  alias SCR.AgentContext
   alias SCR.LLM.Client
   alias SCR.Tools.Registry
   alias SCR.Tools.ExecutionContext
@@ -46,6 +47,15 @@ defmodule SCR.Agents.WorkerAgent do
 
     # Process the task using LLM
     result = process_task_with_llm(task_type, description, task_id)
+
+    _ =
+      AgentContext.add_finding(to_string(task_id), %{
+        agent_id: state.agent_id,
+        task_type: task_type,
+        summary: summarize_result(result)
+      })
+
+    _ = AgentContext.set_status(to_string(task_id), :completed)
 
     # Send result back to sender
     result_msg =
@@ -358,4 +368,14 @@ defmodule SCR.Agents.WorkerAgent do
       trace_id: UUID.uuid4()
     })
   end
+
+  defp summarize_result(result) when is_map(result) do
+    cond do
+      is_binary(Map.get(result, :summary)) -> Map.get(result, :summary)
+      is_binary(get_in(result, [:result, :summary])) -> get_in(result, [:result, :summary])
+      true -> inspect(result) |> String.slice(0, 240)
+    end
+  end
+
+  defp summarize_result(result), do: inspect(result) |> String.slice(0, 240)
 end

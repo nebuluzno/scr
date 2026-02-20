@@ -29,6 +29,16 @@ config :scr, :tools,
 
 config :scr, :task_queue, max_size: 100
 
+config :scr, :health_check,
+  interval_ms: 15_000,
+  auto_heal: true
+
+config :scr, :tool_rate_limit,
+  enabled: true,
+  default_max_calls: 60,
+  default_window_ms: 60_000,
+  per_tool: %{}
+
 # Import environment-specific config
 if config_env() == :dev do
   import_config "dev.exs"
