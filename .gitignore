@@ -42,3 +42,6 @@ scr-*.tar
 node_modules/
 playwright-report/
 test-results/
+
+# Local runtime/temp artifacts
+tmp/
