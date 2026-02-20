@@ -556,3 +556,40 @@ SCR.TaskQueue.dequeue()
 ### Expected Results
 - Telemetry stream contains queue/tool events with metadata tags.
 - Queue tasks survive restart and replay when DETS backend is enabled.
+
+## Tutorial 13: LLM Provider Failover Lab
+
+### Goal
+Validate provider fallback behavior and confirm response provider metadata.
+
+### Steps
+1. Start IEx:
+```bash
+iex -S mix
+```
+2. Enable failover chain:
+```elixir
+Application.put_env(:scr, :llm,
+  Keyword.merge(Application.get_env(:scr, :llm, []),
+    provider: :ollama,
+    failover_enabled: true,
+    failover_providers: [:ollama, :openai, :anthropic],
+    failover_errors: [:connection_error, :timeout, :http_error, :api_error],
+    failover_cooldown_ms: 30_000
+  )
+)
+SCR.ConfigCache.refresh(:llm)
+```
+3. Run chat and inspect selected provider:
+```elixir
+{:ok, response} = SCR.LLM.Client.chat([%{role: "user", content: "Provider check"}])
+response.provider
+```
+4. Check failover state helpers:
+```elixir
+SCR.LLM.Client.clear_failover_state()
+```
+
+### Expected Results
+- Calls return successful content when at least one provider is healthy.
+- `response.provider` shows the provider that actually answered.

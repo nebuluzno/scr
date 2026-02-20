@@ -11,6 +11,10 @@ config :logger, :console,
 # To use OpenAI, change provider to :openai and add your API key
 config :scr, :llm,
   provider: :ollama,
+  failover_enabled: true,
+  failover_providers: [:ollama, :openai, :anthropic],
+  failover_errors: [:connection_error, :timeout, :http_error, :api_error],
+  failover_cooldown_ms: 30_000,
   base_url:
     System.get_env("LLM_BASE_URL") || System.get_env("OPENAI_BASE_URL") ||
       System.get_env("ANTHROPIC_BASE_URL") ||

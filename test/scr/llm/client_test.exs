@@ -3,13 +3,53 @@ defmodule SCR.LLM.ClientTest do
 
   alias SCR.LLM.Client
 
+  defmodule FailingAdapter do
+    @behaviour SCR.LLM.Behaviour
+    def complete(_prompt, _options), do: {:error, %{type: :connection_error, message: "down"}}
+    def chat(_messages, _options), do: {:error, %{type: :connection_error, message: "down"}}
+    def embed(_text, _options), do: {:error, %{type: :connection_error, message: "down"}}
+    def ping, do: {:error, %{type: :connection_error, message: "down"}}
+    def list_models, do: {:error, %{type: :connection_error, message: "down"}}
+
+    def stream(_prompt, _callback, _options),
+      do: {:error, %{type: :connection_error, message: "down"}}
+
+    def chat_stream(_messages, _callback, _options),
+      do: {:error, %{type: :connection_error, message: "down"}}
+
+    def chat_with_tools(_messages, _tool_definitions, _options),
+      do: {:error, %{type: :connection_error, message: "down"}}
+  end
+
+  defmodule SuccessAdapter do
+    @behaviour SCR.LLM.Behaviour
+    def complete(_prompt, _options), do: {:ok, %{content: "ok_complete"}}
+
+    def chat(_messages, _options),
+      do: {:ok, %{content: "ok_chat", message: %{content: "ok_chat"}}}
+
+    def embed(_text, _options), do: {:ok, %{embedding: [0.0]}}
+    def ping, do: {:ok, %{status: "available"}}
+    def list_models, do: {:ok, [%{name: "success"}]}
+    def stream(_prompt, callback, _options), do: callback.("ok_stream")
+    {:ok, %{content: "ok_stream"}}
+    def chat_stream(_messages, callback, _options), do: callback.("ok_chat_stream")
+    {:ok, %{content: "ok_chat_stream"}}
+
+    def chat_with_tools(_messages, _tool_definitions, _options),
+      do: {:ok, %{content: "ok_tools", message: %{content: "ok_tools"}}}
+  end
+
   setup do
     original = Application.get_env(:scr, :llm)
 
     on_exit(fn ->
       Application.put_env(:scr, :llm, original)
+      Client.clear_failover_state()
     end)
 
+    Client.clear_cache()
+    Client.clear_failover_state()
     :ok
   end
 
@@ -52,5 +92,37 @@ defmodule SCR.LLM.ClientTest do
     [call] = Client.extract_tool_calls(response)
     assert call.id == "call_1"
     assert call.function.name == "calculator"
+  end
+
+  test "failover retries next provider on eligible error" do
+    Application.put_env(:scr, :llm,
+      provider: :openai,
+      failover_enabled: true,
+      failover_providers: [:openai, :anthropic],
+      failover_errors: [:connection_error],
+      failover_cooldown_ms: 5_000,
+      adapter_overrides: %{
+        openai: FailingAdapter,
+        anthropic: SuccessAdapter
+      }
+    )
+
+    assert {:ok, response} = Client.chat([%{role: "user", content: "hello"}])
+    assert response.content == "ok_chat"
+    assert response.provider == :anthropic
+  end
+
+  test "failover disabled returns first provider error" do
+    Application.put_env(:scr, :llm,
+      provider: :openai,
+      failover_enabled: false,
+      failover_providers: [:openai, :anthropic],
+      adapter_overrides: %{
+        openai: FailingAdapter,
+        anthropic: SuccessAdapter
+      }
+    )
+
+    assert {:error, %{type: :connection_error}} = Client.chat([%{role: "user", content: "hello"}])
   end
 end

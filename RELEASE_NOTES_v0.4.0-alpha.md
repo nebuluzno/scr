@@ -22,6 +22,6 @@ Release date: 2026-02-20
 - Updated `README.md`, `QUICKSTART.md`, `AGENTS.md`, and `SCR_Improvements.md`.
 
 ## Known Follow-ups (Post v0.4.0-alpha)
-- Provider failover policy across LLM backends
 - Cross-node backpressure-aware scheduling
+- Failover policy hardening (fail-open/fail-closed modes + retry budgets + provider circuit visibility)
 - Larger-scale durable memory backend options (beyond DETS)

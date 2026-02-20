@@ -4,17 +4,16 @@ This list is intentionally forward-looking and does **not** duplicate already-de
 
 ## High Priority
 
-1. Provider failover policy
-- Add health-aware fallback between Ollama, OpenAI, and Anthropic.
-- Define policy controls: fail-open/fail-closed, retry budgets, and circuit reset windows.
-
-2. Cross-node backpressure propagation
+1. Cross-node backpressure propagation
 - Publish per-node queue pressure into distributed scheduler decisions.
 - Throttle new subtasks when cluster saturation exceeds threshold.
 
-3. Placement strategy v3
+2. Placement strategy v3
 - Extend weighted placement with rolling latency and throughput trends from telemetry history.
 - Add configurable hard constraints (max agents per node, max queue per node).
+
+3. Failover policy hardening
+- Add fail-open/fail-closed modes, retry budgets, and explicit provider circuit state endpoints.
 
 ## Medium Priority
 

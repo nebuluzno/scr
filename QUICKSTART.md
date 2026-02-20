@@ -98,6 +98,26 @@ SCR.LLM.Client.ping()
 SCR.LLM.Client.chat([%{role: "user", content: "Say hello"}])
 ```
 
+## 4f. Optional: provider failover smoke test
+Configure fallback chain:
+```elixir
+Application.put_env(:scr, :llm,
+  Keyword.merge(Application.get_env(:scr, :llm, []),
+    provider: :ollama,
+    failover_enabled: true,
+    failover_providers: [:ollama, :openai, :anthropic],
+    failover_cooldown_ms: 30_000
+  )
+)
+SCR.ConfigCache.refresh(:llm)
+```
+
+Verify selected provider in response payload:
+```elixir
+{:ok, response} = SCR.LLM.Client.chat([%{role: "user", content: "Health check"}])
+response.provider
+```
+
 ## 4b. Optional: MCP smoke test (real server)
 Set env vars (verified example with MCP filesystem server):
 ```bash

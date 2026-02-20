@@ -18,6 +18,15 @@ distributed_peer_hosts =
 config :scr, :llm,
   # Can be :openai, :anthropic in production
   provider: :ollama,
+  failover_enabled: System.get_env("SCR_LLM_FAILOVER_ENABLED", "true") == "true",
+  failover_providers:
+    System.get_env("SCR_LLM_FAILOVER_PROVIDERS", "ollama,openai,anthropic")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.map(&String.to_atom/1),
+  failover_errors: [:connection_error, :timeout, :http_error, :api_error],
+  failover_cooldown_ms:
+    String.to_integer(System.get_env("SCR_LLM_FAILOVER_COOLDOWN_MS", "30000")),
   base_url:
     System.get_env("LLM_BASE_URL") || System.get_env("OPENAI_BASE_URL") ||
       System.get_env("ANTHROPIC_BASE_URL") ||

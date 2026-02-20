@@ -50,6 +50,8 @@ defmodule SCR.LLM.Client do
 
   @type provider :: :ollama | :openai | :anthropic | :custom
   @type result :: {:ok, map()} | {:error, term()}
+  @default_failover_cooldown_ms 30_000
+  @default_failover_errors [:connection_error, :timeout, :http_error, :api_error]
 
   @doc """
   Returns the current provider configuration.
@@ -67,7 +69,7 @@ defmodule SCR.LLM.Client do
   Returns the current provider atom.
   """
   def provider do
-    Application.get_env(:scr, :llm, [])
+    llm_config()
     |> Keyword.get(:provider, :ollama)
   end
 
@@ -84,7 +86,7 @@ defmodule SCR.LLM.Client do
 
       {:miss, _} ->
         # Make the actual LLM call
-        result = adapter().complete(prompt, options)
+        result = call_with_failover(:complete, [prompt, options], options)
 
         # Track metrics
         track_metrics(result, options)
@@ -117,7 +119,7 @@ defmodule SCR.LLM.Client do
 
       {:miss, _} ->
         # Make the actual LLM call
-        result = adapter().chat(messages, options)
+        result = call_with_failover(:chat, [messages, options], options)
 
         # Track metrics
         track_metrics(result, options)
@@ -138,7 +140,7 @@ defmodule SCR.LLM.Client do
   Generate embeddings for text.
   """
   def embed(text, options \\ []) do
-    adapter().embed(text, options)
+    call_with_failover(:embed, [text, options], options)
   end
 
   @doc """
@@ -147,8 +149,10 @@ defmodule SCR.LLM.Client do
   Note: Streaming responses are not cached.
   """
   def stream(prompt, callback, options \\ []) do
-    if function_exported?(adapter(), :stream, 3) do
-      adapter().stream(prompt, callback, options)
+    adapter = adapter(provider(), llm_config())
+
+    if function_exported?(adapter, :stream, 3) do
+      call_with_failover(:stream, [prompt, callback, options], options)
     else
       # Fall back to non-streaming if adapter doesn't support it
       complete(prompt, options)
@@ -161,8 +165,10 @@ defmodule SCR.LLM.Client do
   Note: Streaming responses are not cached.
   """
   def chat_stream(messages, callback, options \\ []) do
-    if function_exported?(adapter(), :chat_stream, 3) do
-      adapter().chat_stream(messages, callback, options)
+    adapter = adapter(provider(), llm_config())
+
+    if function_exported?(adapter, :chat_stream, 3) do
+      call_with_failover(:chat_stream, [messages, callback, options], options)
     else
       case chat(messages, options) do
         {:ok, %{content: content} = response} ->
@@ -178,12 +184,12 @@ defmodule SCR.LLM.Client do
   @doc """
   Check if the LLM service is available.
   """
-  def ping, do: adapter().ping()
+  def ping, do: call_with_failover(:ping, [], [])
 
   @doc """
   List available models from the provider.
   """
-  def list_models, do: adapter().list_models()
+  def list_models, do: call_with_failover(:list_models, [], [])
 
   @doc """
   Enable response caching.
@@ -216,6 +222,21 @@ defmodule SCR.LLM.Client do
   def reset_metrics, do: Metrics.reset()
 
   @doc """
+  Clears provider failover cooldown state.
+  """
+  def clear_failover_state do
+    cfg = llm_config()
+
+    cfg
+    |> Keyword.get(:failover_providers, [])
+    |> Enum.each(fn provider ->
+      if is_atom(provider), do: clear_provider_cooldown(provider)
+    end)
+
+    :ok
+  end
+
+  @doc """
   Execute a task with automatic retry on failure.
 
   ## Options
@@ -232,16 +253,23 @@ defmodule SCR.LLM.Client do
   # Private functions
 
   defp adapter do
-    case provider() do
-      :mock -> Mock
-      :openai -> OpenAI
-      :anthropic -> Anthropic
-      _ -> Ollama
-    end
+    adapter(provider(), llm_config())
+  end
+
+  defp adapter(provider, cfg) do
+    overrides = Keyword.get(cfg, :adapter_overrides, %{})
+
+    Map.get(overrides, provider) ||
+      case provider do
+        :mock -> Mock
+        :openai -> OpenAI
+        :anthropic -> Anthropic
+        _ -> Ollama
+      end
   end
 
   defp track_metrics(result, options) do
-    llm_cfg = Application.get_env(:scr, :llm, [])
+    llm_cfg = llm_config()
     model = Keyword.get(options, :model, Keyword.get(llm_cfg, :default_model, "llama2"))
     provider = Keyword.get(options, :provider, provider())
 
@@ -336,7 +364,7 @@ defmodule SCR.LLM.Client do
     tool_definitions = Enum.map(tools, &to_tool_definition/1)
 
     # Make initial call with tools
-    result = adapter().chat_with_tools(messages, tool_definitions, options)
+    result = call_with_failover(:chat_with_tools, [messages, tool_definitions, options], options)
 
     case result do
       {:ok, response} ->
@@ -385,7 +413,7 @@ defmodule SCR.LLM.Client do
     new_messages = messages ++ tool_results
 
     # Make another call to get final response
-    result = adapter().chat(new_messages, options)
+    result = call_with_failover(:chat, [new_messages, options], options)
 
     case result do
       {:ok, response} ->
@@ -492,4 +520,102 @@ defmodule SCR.LLM.Client do
     do: ExecutionContext.new(context)
 
   defp normalize_execution_context(_), do: ExecutionContext.new()
+
+  defp llm_config, do: SCR.ConfigCache.get(:llm, [])
+
+  defp call_with_failover(operation, args, options) do
+    cfg = llm_config()
+    pinned_provider = Keyword.get(options, :provider)
+    providers = candidate_providers(cfg, pinned_provider)
+    cooldown_ms = Keyword.get(cfg, :failover_cooldown_ms, @default_failover_cooldown_ms)
+    allowed_errors = Keyword.get(cfg, :failover_errors, @default_failover_errors)
+
+    run_with_providers(operation, args, providers, cooldown_ms, allowed_errors, cfg, nil)
+  end
+
+  defp run_with_providers(_operation, _args, [], _cooldown_ms, _allowed_errors, _cfg, last_error) do
+    last_error || {:error, %{type: :no_provider_available}}
+  end
+
+  defp run_with_providers(
+         operation,
+         args,
+         [provider | rest],
+         cooldown_ms,
+         allowed_errors,
+         cfg,
+         _last_error
+       ) do
+    if provider_cooldown_active?(provider) do
+      run_with_providers(
+        operation,
+        args,
+        rest,
+        cooldown_ms,
+        allowed_errors,
+        cfg,
+        {:error, %{type: :provider_cooldown, provider: provider}}
+      )
+    else
+      adapter = adapter(provider, cfg)
+
+      result =
+        case apply(adapter, operation, args) do
+          {:ok, response} when is_map(response) ->
+            {:ok, Map.put(response, :provider, provider)}
+
+          other ->
+            other
+        end
+
+      case result do
+        {:ok, _} = ok ->
+          clear_provider_cooldown(provider)
+          ok
+
+        {:error, reason} = error ->
+          if failover_enabled?(cfg) and failover_error?(reason, allowed_errors) and rest != [] do
+            mark_provider_failed(provider, cooldown_ms)
+            run_with_providers(operation, args, rest, cooldown_ms, allowed_errors, cfg, error)
+          else
+            error
+          end
+      end
+    end
+  end
+
+  defp candidate_providers(cfg, pinned_provider) do
+    providers =
+      cond do
+        not is_nil(pinned_provider) -> [pinned_provider]
+        failover_enabled?(cfg) -> Keyword.get(cfg, :failover_providers, [provider()])
+        true -> [provider()]
+      end
+
+    providers
+    |> Enum.uniq()
+    |> Enum.filter(&is_atom/1)
+  end
+
+  defp failover_enabled?(cfg), do: Keyword.get(cfg, :failover_enabled, false)
+
+  defp failover_error?(%{type: type}, allowed), do: type in allowed
+  defp failover_error?(type, allowed) when is_atom(type), do: type in allowed
+  defp failover_error?(_, _), do: false
+
+  defp provider_cooldown_active?(provider) do
+    until_ms = :persistent_term.get({:scr_llm_failover_until, provider}, 0)
+    until_ms > System.system_time(:millisecond)
+  end
+
+  defp mark_provider_failed(provider, cooldown_ms) do
+    :persistent_term.put(
+      {:scr_llm_failover_until, provider},
+      System.system_time(:millisecond) + cooldown_ms
+    )
+  end
+
+  defp clear_provider_cooldown(provider) do
+    :persistent_term.put({:scr_llm_failover_until, provider}, 0)
+  end
 end

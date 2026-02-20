@@ -26,6 +26,7 @@ It provides:
 ## Quick Links
 - Full setup + first run: `QUICKSTART.md`
 - Step-by-step tutorials: `TUTORIALS.md`
+- Documentation index: `DOCS_INDEX.md`
 - Release prep checklist: `RELEASE_CHECKLIST.md`
 - Latest release notes: `RELEASE_NOTES_v0.4.0-alpha.md`
 - Competitive comparison: `SCR_Competitive_Comparison.md`
@@ -164,6 +165,24 @@ In `config/config.exs`:
 ```elixir
 config :scr, :llm,
   provider: :anthropic
+```
+
+### Provider failover policy (all providers)
+Failover is enabled by default and attempts providers in order:
+```elixir
+config :scr, :llm,
+  provider: :ollama,
+  failover_enabled: true,
+  failover_providers: [:ollama, :openai, :anthropic],
+  failover_errors: [:connection_error, :timeout, :http_error, :api_error],
+  failover_cooldown_ms: 30_000
+```
+
+Production env overrides:
+```bash
+export SCR_LLM_FAILOVER_ENABLED=true
+export SCR_LLM_FAILOVER_PROVIDERS=ollama,openai,anthropic
+export SCR_LLM_FAILOVER_COOLDOWN_MS=30000
 ```
 
 ## Tool System (Hybrid)
