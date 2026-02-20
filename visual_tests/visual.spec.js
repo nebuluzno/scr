@@ -14,7 +14,8 @@ for (const pageConfig of pages) {
 
     await expect(page).toHaveScreenshot(pageConfig.snapshot, {
       fullPage: true,
-      maxDiffPixels: 1200
+      // Keep CI stable across Linux/macOS font rendering differences.
+      maxDiffPixelRatio: 0.05
     });
   });
 }
