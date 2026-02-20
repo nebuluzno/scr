@@ -1,8 +1,8 @@
 # SCR Release Checklist
 
 This checklist prepares the next release cut.  
-Current docs version label: `v0.1.0-alpha`  
-Suggested next target: `v0.2.0-alpha`
+Current docs version label: `v0.2.0-alpha`  
+Suggested next target: `v0.2.1-alpha`
 
 ## 1. Pre-release validation
 1. Run:

@@ -282,6 +282,6 @@ See `SCR_Improvements.md` for planned features:
 
 ## Version
 
-Current version: **v0.1.0-alpha**
+Current version: **v0.2.0-alpha**
 
 This is an early alpha release for feedback and testing. Expect breaking changes.

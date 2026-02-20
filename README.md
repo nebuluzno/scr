@@ -297,4 +297,4 @@ mix scr.mcp.smoke --server filesystem --tool list_directory --args-json '{"path"
 ```
 
 ## Current Version
-`v0.1.0-alpha`
+`v0.2.0-alpha`
