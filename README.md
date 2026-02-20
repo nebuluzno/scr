@@ -40,7 +40,7 @@ mix compile
 - Main CI validates formatting, compile warnings, and tests.
 - Coverage runs in a non-blocking job and uploads `cover/` as an artifact.
 - Docs quality gate validates markdown lint + internal links on key project docs.
-- Visual regression job captures dashboard/task/metrics/tools screenshots as CI artifacts (currently non-blocking).
+- Visual regression baseline-diff job is blocking in CI and uploads Playwright artifacts on failure.
 - Optional MCP smoke job runs only on non-PR events when these repo secrets are set:
   `SCR_MCP_SERVER_NAME`, `SCR_MCP_SERVER_COMMAND`, `SCR_MCP_SERVER_ARGS`, `SCR_MCP_ALLOWED_TOOLS`.
 
@@ -268,6 +268,22 @@ make obs-down
 Other useful targets:
 - `make obs-logs`
 - `make obs-reset`
+
+## Visual Regression Workflow
+Baseline snapshots live in:
+- `visual_tests/snapshots/`
+
+Run checks locally:
+```bash
+npm ci
+npx playwright install chromium
+npm run visual:test
+```
+
+Refresh baselines intentionally:
+```bash
+npm run visual:update
+```
 
 ## MCP Smoke Check (Dev)
 Use this to validate a real MCP server integration locally:

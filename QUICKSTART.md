@@ -159,6 +159,18 @@ make obs-logs
 make obs-reset
 ```
 
+### Optional: visual regression check
+```bash
+npm ci
+npx playwright install chromium
+npm run visual:test
+```
+
+Refresh baselines when UI changes are intentional:
+```bash
+npm run visual:update
+```
+
 ### Optional: test tool chaining utility
 ```elixir
 SCR.Tools.Chain.execute(

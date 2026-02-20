@@ -35,6 +35,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Added Prometheus alert rule templates + Alertmanager starter config for core runtime alerts.
 - `[done]` Added one-command observability stack (`docker-compose.observability.yml`) with Prometheus/Alertmanager/Grafana provisioning.
 - `[done]` Added `Makefile` observability targets (`obs-up`, `obs-down`, `obs-logs`, `obs-reset`) for faster operations.
+- `[done]` Visual regression baseline-diff checks are now blocking in CI using Playwright snapshots.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -68,6 +69,7 @@ This document outlines potential improvements and optimizations for the Supervis
   2. Web UI queue controls
   3. MCP + safety/rate limits + context debug
   4. Observability stack bring-up + verification
+  5. Visual regression baseline-diff workflow
 - `[planned]` Expand tutorials with custom-tool authoring and full multi-agent debugging labs.
 - `[done]` Version update prep checklist added (`RELEASE_CHECKLIST.md`) including validation, version alignment, release notes, and tagging.
 
@@ -90,16 +92,16 @@ mix phx.server
 
 ## New Suggestions: Docs and UI Quality
 
-### 1. [in-progress] Visual Regression Testing for Web UI
+### 1. [done] Visual Regression Testing for Web UI
 **Why:** UI updates are now centralized and more design-driven; regressions are easier to introduce across pages.
 
-**Suggestion:**
-- Add screenshot-based regression tests for:
+**Implemented:**
+- Added Playwright visual suite with repository baselines for:
   - `/`
   - `/tasks/new`
   - `/metrics`
   - `/tools`
-- Run checks in CI on pull requests and store baseline snapshots in repo.
+- CI now runs baseline-diff checks as a blocking job and uploads report artifacts.
 
 **Expected Benefit:**
 - Detect layout/style regressions before merge

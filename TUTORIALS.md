@@ -166,6 +166,35 @@ make obs-down
 - Grafana displays queue, rate-limit, MCP, and latency panels.
 - Alertmanager is running and ready to receive alerts from Prometheus rules.
 
+## Tutorial 5: Visual Regression Baseline Diff
+
+### Goal
+Run Playwright baseline-diff checks locally and update snapshots when UI changes are intentional.
+
+### Steps
+1. Install Node dependencies:
+```bash
+npm ci
+```
+2. Install Chromium for Playwright:
+```bash
+npx playwright install chromium
+```
+3. Run visual checks:
+```bash
+npm run visual:test
+```
+4. If UI changes are intentional, refresh snapshots:
+```bash
+npm run visual:update
+```
+5. Re-run the test command and confirm all checks pass.
+
+### Expected Results
+- `visual:test` passes on unchanged UI.
+- Intentional UI updates are captured in `visual_tests/snapshots/`.
+- CI visual regression job uses the same baseline files.
+
 ## Next Tutorials (Planned)
 - Build a custom native tool and register it safely.
 - Add an MCP server profile and strict allowlist policy.

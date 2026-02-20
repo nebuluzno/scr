@@ -37,3 +37,8 @@ scr-*.tar
 
 # macOS
 .DS_Store
+
+# Node / Playwright artifacts
+node_modules/
+playwright-report/
+test-results/

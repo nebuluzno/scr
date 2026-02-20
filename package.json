@@ -1,0 +1,12 @@
+{
+  "name": "scr-visual-regression",
+  "private": true,
+  "version": "0.0.0",
+  "devDependencies": {
+    "@playwright/test": "1.52.0"
+  },
+  "scripts": {
+    "visual:test": "playwright test -c playwright.visual.config.js",
+    "visual:update": "playwright test -c playwright.visual.config.js --update-snapshots"
+  }
+}
