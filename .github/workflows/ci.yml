@@ -10,6 +10,39 @@ permissions:
   contents: read
 
 jobs:
+  docs:
+    name: Docs Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Markdown lint
+        run: |
+          npx -y markdownlint-cli@0.39.0 \
+            --config .markdownlint.json \
+            "README.md" \
+            "QUICKSTART.md" \
+            "SCR_Improvements.md" \
+            "SCR_UseCases.md" \
+            "SCR_Medium_Article.md" \
+            "AGENTS.md" \
+            "plans/*.md"
+
+      - name: Internal link check
+        uses: lycheeverse/lychee-action@v2
+        with:
+          fail: true
+          args: >-
+            --offline --no-progress
+            README.md QUICKSTART.md SCR_Improvements.md SCR_UseCases.md SCR_Medium_Article.md AGENTS.md plans/phoenix_web_interface_plan.md
+
   test:
     name: Elixir CI
     runs-on: ubuntu-latest

@@ -2,6 +2,31 @@
 
 This document outlines potential improvements and optimizations for the Supervised Cognitive Runtime.
 
+## Backlog Status Legend
+- `[done]`: implemented and merged to `main`
+- `[in-progress]`: partially implemented
+- `[planned]`: approved but not yet implemented
+- `[idea]`: candidate item, not yet scheduled
+
+## Current Delivery Status
+- `[done]` Unified hybrid tool architecture (native + MCP) via one registry/policy/execution path.
+- `[done]` Strict/demo tool policy enforcement with execution context propagation.
+- `[done]` MCP server lifecycle manager and smoke task (`mix scr.mcp.smoke`).
+- `[done]` Web UI layout polish and docs refresh for CLI + Web UI examples.
+- `[done]` Portability cleanup removing hardcoded local `/Users/lars/...` paths.
+- `[done]` CI baseline: formatting, compile warnings-as-errors, tests.
+- `[done]` Coverage CI artifact job (non-blocking until coverage rises).
+- `[done]` Optional CI MCP smoke job (secret-gated).
+- `[done]` Docs quality gate in CI (markdown lint + internal link validation).
+
+## Roadmap Parity (From AGENTS.md Future Roadmap)
+- `[planned]` OpenAI adapter support
+- `[planned]` Anthropic adapter support
+- `[planned]` Streaming LLM responses
+- `[planned]` Persistent storage backend (beyond ETS-only runtime)
+- `[planned]` Distributed agent support
+- `[planned]` Enhanced tool sandboxing
+
 ## Current Baseline Commands
 
 CLI demo:
@@ -21,7 +46,7 @@ mix phx.server
 
 ## New Suggestions: Docs and UI Quality
 
-### 1. Visual Regression Testing for Web UI
+### 1. [planned] Visual Regression Testing for Web UI
 **Why:** UI updates are now centralized and more design-driven; regressions are easier to introduce across pages.
 
 **Suggestion:**
@@ -36,7 +61,7 @@ mix phx.server
 - Detect layout/style regressions before merge
 - Make UI changes safer and faster
 
-### 2. Documentation CI Quality Gate
+### 2. [done] Documentation CI Quality Gate
 **Why:** CLI and Web UI docs are now expanded, and drift is likely as runtime features evolve.
 
 **Suggestion:**
