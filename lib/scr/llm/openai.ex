@@ -234,11 +234,12 @@ defmodule SCR.LLM.OpenAI do
 
   defp chat_response_from_choice(choice, model, usage, raw) do
     message = Map.get(choice, "message", %{})
+    tool_calls = normalize_tool_calls(Map.get(message, "tool_calls", []))
 
     %{
       content: Map.get(message, "content", ""),
       role: Map.get(message, "role", "assistant"),
-      tool_calls: Map.get(message, "tool_calls", []),
+      tool_calls: tool_calls,
       model: model,
       finish_reason: Map.get(choice, "finish_reason"),
       usage: %{
@@ -249,11 +250,28 @@ defmodule SCR.LLM.OpenAI do
       message: %{
         content: Map.get(message, "content", ""),
         role: Map.get(message, "role", "assistant"),
-        tool_calls: Map.get(message, "tool_calls", [])
+        tool_calls: tool_calls
       },
       raw: raw
     }
   end
+
+  defp normalize_tool_calls(tool_calls) when is_list(tool_calls) do
+    Enum.map(tool_calls, fn call ->
+      function = Map.get(call, "function", %{})
+
+      %{
+        id: Map.get(call, "id"),
+        type: Map.get(call, "type", "function"),
+        function: %{
+          name: Map.get(function, "name"),
+          arguments: Map.get(function, "arguments", "{}")
+        }
+      }
+    end)
+  end
+
+  defp normalize_tool_calls(_), do: []
 
   defp normalize_messages(messages) do
     Enum.map(messages, fn

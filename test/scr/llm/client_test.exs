@@ -30,4 +30,22 @@ defmodule SCR.LLM.ClientTest do
     assert_received {:chunk, chunk}
     assert chunk in ["mock chat stream", "mock chat"]
   end
+
+  test "extract_tool_calls handles normalized tool call shape" do
+    response = %{
+      message: %{
+        tool_calls: [
+          %{
+            id: "call_1",
+            type: "function",
+            function: %{name: "calculator", arguments: ~s({"operation":"add","a":1,"b":2})}
+          }
+        ]
+      }
+    }
+
+    [call] = Client.extract_tool_calls(response)
+    assert call.id == "call_1"
+    assert call.function.name == "calculator"
+  end
 end
