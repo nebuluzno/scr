@@ -5,11 +5,11 @@
   --error-color: #dc2626;
   --bg-color: #0b1220;
   --bg-secondary: #111c31;
-  --card-bg: rgba(20, 30, 50, 0.84);
-  --border-color: rgba(129, 150, 185, 0.28);
+  --card-bg: rgba(20, 30, 50, 0.8);
+  --border-color: rgba(144, 170, 214, 0.24);
   --text-color: #e2ebfb;
-  --text-secondary: #94a9c9;
-  --text-muted: #7489ab;
+  --text-secondary: #afc2df;
+  --text-muted: #8fa5c9;
   --gradient-start: #0ea5a4;
   --gradient-end: #22c55e;
 }
@@ -49,11 +49,12 @@ body {
 .nav-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0.85rem 1.35rem;
+  padding: 0.7rem 1.2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1.2rem;
+  position: relative;
 }
 
 .nav-brand {
@@ -71,6 +72,33 @@ body {
 
 .nav-links { display: flex; list-style: none; gap: 0.5rem; overflow-x: auto; scrollbar-width: none; }
 .nav-links::-webkit-scrollbar { display: none; }
+
+.nav-toggle {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav-toggle-btn {
+  display: none;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-direction: column;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: rgba(15, 25, 45, 0.8);
+  cursor: pointer;
+}
+
+.nav-toggle-btn span {
+  width: 16px;
+  height: 2px;
+  background: #dce9fb;
+}
+
 .nav-links a {
   color: #c5d7f7;
   text-decoration: none;
@@ -91,7 +119,7 @@ body {
 .footer { margin-top: auto; border-top: 1px solid rgba(157, 178, 214, 0.2); background: rgba(9, 15, 29, 0.82); }
 .footer-content { max-width: 1400px; margin: 0 auto; text-align: center; padding: 0.8rem 1rem; color: var(--text-muted); font-size: 0.85rem; }
 
-.container { max-width: 1200px; margin: 0 auto; }
+.container { max-width: 1100px; margin: 0 auto; }
 h1 { font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif; font-size: clamp(1.8rem, 3vw, 2.45rem); color: #f6fbff; }
 h2 { font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif; font-size: 1.45rem; color: #edf5ff; }
 h3 { font-size: 1.1rem; color: #edf5ff; }
@@ -125,6 +153,14 @@ h3 { font-size: 1.1rem; color: #edf5ff; }
 .form-tips,
 .detail-card,
 .usage-chart { padding: 1rem; }
+
+.card,
+.stat-card,
+.task-form,
+.form-tips,
+.usage-chart {
+  box-shadow: 0 10px 28px rgba(4, 10, 24, 0.34);
+}
 
 .card:hover,
 .agent-card:hover,
@@ -191,6 +227,9 @@ h3 { font-size: 1.1rem; color: #edf5ff; }
 .dashboard-grid, .memory-grid, .cache-grid, .tools-grid, .agents-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .features-grid, .info-cards, .agent-types-grid, .task-types, .options-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+.stats-grid {
+  margin-bottom: 1.2rem;
+}
 
 .actions, .actions-bar, .form-actions { display: flex; gap: 0.72rem; flex-wrap: wrap; }
 .actions-bar, .form-actions { justify-content: center; }
@@ -201,6 +240,9 @@ h3 { font-size: 1.1rem; color: #edf5ff; }
 
 .agent-list, .memory-list, .tasks-list, .quick-tools { display: flex; flex-direction: column; gap: 0.72rem; }
 .agent-item, .memory-item, .task-item, .quick-tool-item, .agent-card { padding: 0.72rem 0.9rem; }
+.agent-item, .memory-item, .task-item, .quick-tool-item {
+  background: rgba(15, 25, 45, 0.65);
+}
 .memory-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
 .agent-card { text-decoration: none; color: inherit; }
 .agent-arrow { color: var(--text-muted); }
@@ -238,6 +280,28 @@ h3 { font-size: 1.1rem; color: #edf5ff; }
 .task-type-option { cursor: pointer; }
 .task-type-card { border: 1px solid var(--border-color); border-radius: 10px; padding: 0.72rem; display: flex; flex-direction: column; gap: 0.2rem; background: rgba(17, 28, 49, 0.6); }
 .task-type-option input:checked + .task-type-card { border-color: rgba(22, 163, 74, 0.76); background: rgba(22, 163, 74, 0.14); }
+.task-form-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+}
+
+.form-section {
+  margin-bottom: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(144, 170, 214, 0.18);
+}
+
+.form-section:last-of-type {
+  border-bottom: 0;
+  margin-bottom: 0.5rem;
+}
+
+.form-tips ul {
+  margin-left: 1.05rem;
+  margin-bottom: 0.7rem;
+  color: var(--text-secondary);
+}
 
 .tool-tag { display: inline-block; margin: 0.2rem; border-radius: 999px; padding: 0.2rem 0.55rem; font-size: 0.78rem; background: rgba(14, 165, 164, 0.16); color: #99fbf7; }
 .available-tools { display: flex; flex-wrap: wrap; gap: 0.32rem; }
@@ -262,6 +326,15 @@ h3 { font-size: 1.1rem; color: #edf5ff; }
 .empty-state-icon { font-size: 2.2rem; margin-bottom: 0.4rem; }
 .section { margin-top: 1.8rem; padding-top: 1.4rem; border-top: 1px solid var(--border-color); }
 
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(80, 231, 197, 0.9);
+  outline-offset: 2px;
+}
+
 .fade-in { animation: fadeIn 0.24s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.56; } }
@@ -285,9 +358,32 @@ h3 { font-size: 1.1rem; color: #edf5ff; }
 
 @media (max-width: 760px) {
   .main-content { padding: 1.2rem 0.72rem 2rem; }
-  .nav-container { flex-direction: column; align-items: flex-start; padding: 0.75rem 0.85rem; }
-  .nav-links { width: 100%; }
+  .nav-container {
+    padding: 0.7rem 0.85rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+  .nav-toggle-btn {
+    display: inline-flex;
+  }
+  .nav-links {
+    width: 100%;
+    grid-column: 1 / -1;
+    display: none;
+    flex-direction: column;
+    padding-top: 0.5rem;
+  }
+  .nav-links a {
+    border-radius: 8px;
+  }
+  .nav-toggle:checked ~ .nav-links {
+    display: flex;
+  }
   .dashboard-grid, .memory-grid, .cache-grid, .tools-grid, .agents-grid, .task-types, .options-grid, .features-grid, .agent-types-grid, .info-cards {
+    grid-template-columns: 1fr;
+  }
+  .task-form-container {
     grid-template-columns: 1fr;
   }
   .card-header, .agent-item, .memory-header, .task-item, .agent-header { flex-wrap: wrap; }
