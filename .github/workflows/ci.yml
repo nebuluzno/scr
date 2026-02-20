@@ -168,7 +168,7 @@ jobs:
 
       - name: Start Phoenix server
         run: |
-          MIX_ENV=test PHX_SERVER=true mix phx.server > /tmp/phoenix.log 2>&1 &
+          SCR_FORCE_SERVER=true mix phx.server > /tmp/phoenix.log 2>&1 &
           echo $! > /tmp/phoenix.pid
 
       - name: Wait for Phoenix server
