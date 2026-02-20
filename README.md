@@ -131,9 +131,10 @@ brew install node
 npm install -g @modelcontextprotocol/server-filesystem
 
 export SCR_MCP_ENABLED=true
+export SCR_WORKSPACE_ROOT="$PWD"
 export SCR_MCP_SERVER_NAME=filesystem
 export SCR_MCP_SERVER_COMMAND=mcp-server-filesystem
-export SCR_MCP_SERVER_ARGS="/Users/lars/Documents/SCR"
+export SCR_MCP_SERVER_ARGS="$SCR_WORKSPACE_ROOT"
 export SCR_MCP_ALLOWED_TOOLS="list_directory,read_file,write_file"
 
 mix scr.mcp.smoke

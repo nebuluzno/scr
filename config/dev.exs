@@ -16,11 +16,13 @@ config :scr, :llm,
 # MCP (dev-only, env-driven)
 # Example:
 #   export SCR_MCP_ENABLED=true
+#   export SCR_WORKSPACE_ROOT="$PWD"
 #   export SCR_MCP_SERVER_NAME=filesystem
 #   export SCR_MCP_SERVER_COMMAND=npx
-#   export SCR_MCP_SERVER_ARGS="-y,@modelcontextprotocol/server-filesystem,/Users/lars/Documents/SCR"
+#   export SCR_MCP_SERVER_ARGS="-y,@modelcontextprotocol/server-filesystem,$SCR_WORKSPACE_ROOT"
 #   export SCR_MCP_ALLOWED_TOOLS="read_file,list_directory"
 mcp_enabled = System.get_env("SCR_MCP_ENABLED", "false") == "true"
+workspace_root = System.get_env("SCR_WORKSPACE_ROOT") || File.cwd!()
 mcp_server_name = System.get_env("SCR_MCP_SERVER_NAME", "dev_mcp")
 mcp_server_command = System.get_env("SCR_MCP_SERVER_COMMAND", "")
 
@@ -46,7 +48,7 @@ config :scr, :tools,
         command: mcp_server_command,
         args: mcp_server_args,
         env: %{},
-        cwd: "/Users/lars/Documents/SCR",
+        cwd: workspace_root,
         allowed_tools: mcp_allowed_tools,
         enabled: mcp_server_enabled
       }
