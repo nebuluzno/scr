@@ -67,6 +67,13 @@ config :scr, :distributed,
   flap_window_ms: String.to_integer(System.get_env("SCR_DISTRIBUTED_FLAP_WINDOW_MS", "60000")),
   flap_threshold: String.to_integer(System.get_env("SCR_DISTRIBUTED_FLAP_THRESHOLD", "3")),
   quarantine_ms: String.to_integer(System.get_env("SCR_DISTRIBUTED_QUARANTINE_MS", "120000")),
+  placement_weights: [
+    queue_depth_weight: String.to_float(System.get_env("SCR_DISTRIBUTED_QUEUE_WEIGHT", "1.0")),
+    agent_count_weight: String.to_float(System.get_env("SCR_DISTRIBUTED_AGENT_WEIGHT", "1.0")),
+    unhealthy_weight: String.to_float(System.get_env("SCR_DISTRIBUTED_UNHEALTHY_WEIGHT", "15.0")),
+    down_event_weight: String.to_float(System.get_env("SCR_DISTRIBUTED_DOWN_WEIGHT", "5.0")),
+    local_bias: String.to_float(System.get_env("SCR_DISTRIBUTED_LOCAL_BIAS", "2.0"))
+  ],
   rpc_timeout_ms: String.to_integer(System.get_env("SCR_DISTRIBUTED_RPC_TIMEOUT_MS", "5000"))
 
 config :libcluster,

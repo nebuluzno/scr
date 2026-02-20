@@ -4,17 +4,17 @@ This list is intentionally forward-looking and does **not** duplicate already-de
 
 ## High Priority
 
-1. Distributed placement strategy v2
-- Add weighted node scoring using queue depth, tool latency, and recent failure rates.
-- Use scoring for both `SCR.Distributed.start_agent/5` and automatic handoff targets.
-
-2. Provider failover policy
+1. Provider failover policy
 - Add health-aware fallback between Ollama, OpenAI, and Anthropic.
 - Define policy controls: fail-open/fail-closed, retry budgets, and circuit reset windows.
 
-3. Cross-node backpressure propagation
+2. Cross-node backpressure propagation
 - Publish per-node queue pressure into distributed scheduler decisions.
 - Throttle new subtasks when cluster saturation exceeds threshold.
+
+3. Placement strategy v3
+- Extend weighted placement with rolling latency and throughput trends from telemetry history.
+- Add configurable hard constraints (max agents per node, max queue per node).
 
 ## Medium Priority
 

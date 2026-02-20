@@ -63,6 +63,18 @@ defmodule SCR.DistributedTest do
     end
   end
 
+  test "placement_report returns scored node entries" do
+    assert {:ok, report} = SCR.Distributed.placement_report([Node.self()], 1_000)
+    assert is_list(report)
+    assert length(report) == 1
+    entry = hd(report)
+    assert entry.node == Node.self()
+    assert is_number(entry.score)
+    assert Map.has_key?(entry, :queue_size)
+    assert Map.has_key?(entry, :agent_count)
+    assert Map.has_key?(entry, :unhealthy_count)
+  end
+
   test "handoff_agent/3 rejects same-node handoff" do
     agent_id = "distributed_handoff_worker_#{System.unique_integer([:positive])}"
 

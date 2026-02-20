@@ -486,6 +486,7 @@ Application.put_env(:libcluster, :topologies,
 ```elixir
 SCR.Distributed.connect_peers()
 SCR.Distributed.status()
+SCR.Distributed.placement_report()
 ```
 5. Start an agent on node `scr2` from shell A:
 ```elixir
@@ -508,6 +509,7 @@ SCR.Distributed.handoff_agent("worker_remote_1", Node.self())
 ### Expected Results
 - Nodes connect only when cookie and naming match.
 - Peer status exposes reconnect interval and failure counters.
+- Placement report shows weighted node scores.
 - Remote health checks return `:ok` for active agents and structured errors for missing ones.
 - Manual handoff moves the agent to the target node while preserving its registered id.
 

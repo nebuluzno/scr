@@ -204,8 +204,9 @@ Core distributed API:
 - `SCR.Distributed.connect_peers/0`
 - `SCR.Distributed.list_cluster_agents/0`
 - `SCR.Distributed.start_agent_on/6`
-- `SCR.Distributed.start_agent/5` (watchdog-aware placement)
+- `SCR.Distributed.start_agent/5` (weighted placement)
 - `SCR.Distributed.pick_start_node/1`
+- `SCR.Distributed.placement_report/2`
 - `SCR.Distributed.handoff_agent/3`
 - `SCR.Distributed.check_agent_health_on/3`
 - `SCR.Distributed.check_cluster_health/1`
@@ -238,6 +239,7 @@ config :libcluster,
 Quick check from IEx:
 ```elixir
 SCR.Distributed.status()
+SCR.Distributed.placement_report()
 SCR.Distributed.list_cluster_agents()
 SCR.Distributed.pick_start_node()
 SCR.Distributed.start_agent("worker_auto_1", :worker, SCR.Agents.WorkerAgent, %{agent_id: "worker_auto_1"})
@@ -331,6 +333,13 @@ config :scr, :distributed,
   flap_window_ms: 60_000,
   flap_threshold: 3,
   quarantine_ms: 120_000,
+  placement_weights: [
+    queue_depth_weight: 1.0,
+    agent_count_weight: 1.0,
+    unhealthy_weight: 15.0,
+    down_event_weight: 5.0,
+    local_bias: 2.0
+  ],
   rpc_timeout_ms: 5_000
 
 config :libcluster,
@@ -355,6 +364,11 @@ export SCR_DISTRIBUTED_BACKOFF_MULTIPLIER=2.0
 export SCR_DISTRIBUTED_FLAP_WINDOW_MS=60000
 export SCR_DISTRIBUTED_FLAP_THRESHOLD=3
 export SCR_DISTRIBUTED_QUARANTINE_MS=120000
+export SCR_DISTRIBUTED_QUEUE_WEIGHT=1.0
+export SCR_DISTRIBUTED_AGENT_WEIGHT=1.0
+export SCR_DISTRIBUTED_UNHEALTHY_WEIGHT=15.0
+export SCR_DISTRIBUTED_DOWN_WEIGHT=5.0
+export SCR_DISTRIBUTED_LOCAL_BIAS=2.0
 export SCR_DISTRIBUTED_RPC_TIMEOUT_MS=5000
 export RELEASE_COOKIE="replace-with-strong-cookie"
 export SCR_TASK_QUEUE_BACKEND=memory

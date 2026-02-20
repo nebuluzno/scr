@@ -72,7 +72,8 @@ defmodule SCR.Distributed.NodeWatchdog do
        flap_window_ms: state.flap_window_ms,
        flap_threshold: state.flap_threshold,
        quarantine_ms: state.quarantine_ms,
-       quarantined_nodes: quarantined
+       quarantined_nodes: quarantined,
+       recent_down_events: recent_down_events(state.down_events, now_ms, state.flap_window_ms)
      }, state}
   end
 
@@ -157,6 +158,17 @@ defmodule SCR.Distributed.NodeWatchdog do
   defp active_quarantined(quarantined_until, now_ms) do
     Enum.into(quarantined_until, %{}, fn {node, until_ms} -> {node, until_ms} end)
     |> Enum.filter(fn {_node, until_ms} -> until_ms > now_ms end)
+    |> Enum.into(%{})
+  end
+
+  defp recent_down_events(down_events, now_ms, window_ms) do
+    cutoff = now_ms - window_ms
+
+    down_events
+    |> Enum.into(%{}, fn {node, events} ->
+      {node, events |> Enum.count(&(&1 >= cutoff))}
+    end)
+    |> Enum.filter(fn {_node, count} -> count > 0 end)
     |> Enum.into(%{})
   end
 

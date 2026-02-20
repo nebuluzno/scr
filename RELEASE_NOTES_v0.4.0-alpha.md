@@ -9,6 +9,7 @@ Release date: 2026-02-20
   - `PartitionSupervisor`-backed sharded `SCR.AgentContext`
   - durable/replayable queue backend via DETS (`SCR.TaskQueue` `backend: :dets`)
   - persistent-term hot-path config cache (`SCR.ConfigCache`)
+  - distributed placement strategy v2 with weighted scoring (`SCR.Distributed.placement_report/2`, `pick_start_node/1`)
 - Distributed runtime remains integrated with:
   - discovery (`libcluster`)
   - spec replication and handoff (`SCR.Distributed.SpecRegistry`/`HandoffManager`)
@@ -21,7 +22,6 @@ Release date: 2026-02-20
 - Updated `README.md`, `QUICKSTART.md`, `AGENTS.md`, and `SCR_Improvements.md`.
 
 ## Known Follow-ups (Post v0.4.0-alpha)
-- Distributed placement strategy v2 (load/latency/failure weighted node scoring)
 - Provider failover policy across LLM backends
 - Cross-node backpressure-aware scheduling
 - Larger-scale durable memory backend options (beyond DETS)

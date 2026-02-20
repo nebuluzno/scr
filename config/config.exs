@@ -91,6 +91,13 @@ config :scr, :distributed,
   flap_window_ms: 60_000,
   flap_threshold: 3,
   quarantine_ms: 120_000,
+  placement_weights: [
+    queue_depth_weight: 1.0,
+    agent_count_weight: 1.0,
+    unhealthy_weight: 15.0,
+    down_event_weight: 5.0,
+    local_bias: 2.0
+  ],
   rpc_timeout_ms: 5_000
 
 config :libcluster,

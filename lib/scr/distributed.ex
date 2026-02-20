@@ -95,15 +95,31 @@ defmodule SCR.Distributed do
     healthy =
       if Process.whereis(NodeWatchdog), do: NodeWatchdog.filter_healthy(nodes), else: nodes
 
-    cond do
-      Node.self() in healthy ->
-        {:ok, Node.self()}
+    case placement_report(healthy) do
+      {:ok, [_ | _] = scored} ->
+        best = Enum.max_by(scored, & &1.score)
+        {:ok, best.node}
 
-      healthy != [] ->
-        {:ok, hd(healthy)}
-
-      true ->
+      _ ->
         {:error, :no_healthy_nodes}
+    end
+  end
+
+  @doc """
+  Returns weighted placement scores for candidate nodes.
+  """
+  def placement_report(candidates \\ nil, timeout_ms \\ rpc_timeout_ms()) do
+    nodes = candidates || healthy_cluster_nodes()
+
+    if nodes == [] do
+      {:ok, []}
+    else
+      report =
+        Enum.map(nodes, fn node ->
+          score_node(node, timeout_ms)
+        end)
+
+      {:ok, report}
     end
   end
 
@@ -273,6 +289,81 @@ defmodule SCR.Distributed do
 
   defp distributed_config do
     SCR.ConfigCache.get(:distributed, [])
+  end
+
+  defp score_node(node, timeout_ms) do
+    weights = placement_weights()
+    queue_size = node_queue_size(node, timeout_ms)
+    agent_count = node_agent_count(node, timeout_ms)
+    unhealthy_count = node_unhealthy_count(node, timeout_ms)
+    down_events = node_down_events(node)
+    quarantined = quarantined_target?(node)
+
+    score =
+      100.0 -
+        queue_size * Map.get(weights, :queue_depth_weight, 1.0) -
+        agent_count * Map.get(weights, :agent_count_weight, 1.0) -
+        unhealthy_count * Map.get(weights, :unhealthy_weight, 15.0) -
+        down_events * Map.get(weights, :down_event_weight, 5.0) -
+        if(quarantined, do: 1000.0, else: 0.0) +
+        if(node == Node.self(), do: Map.get(weights, :local_bias, 2.0), else: 0.0)
+
+    %{
+      node: node,
+      score: Float.round(score, 2),
+      queue_size: queue_size,
+      agent_count: agent_count,
+      unhealthy_count: unhealthy_count,
+      recent_down_events: down_events,
+      quarantined: quarantined
+    }
+  end
+
+  defp node_queue_size(node, timeout_ms) do
+    case rpc_call(node, SCR.TaskQueue, :stats, [], timeout_ms) do
+      stats when is_map(stats) -> Map.get(stats, :size, 0)
+      _ -> 1000
+    end
+  end
+
+  defp node_agent_count(node, timeout_ms) do
+    case list_agents_on(node, timeout_ms) do
+      {:ok, agents} -> length(agents)
+      _ -> 1000
+    end
+  end
+
+  defp node_unhealthy_count(node, timeout_ms) do
+    case list_agents_on(node, timeout_ms) do
+      {:ok, agents} ->
+        Enum.reduce(agents, 0, fn agent_id, acc ->
+          case check_agent_health_on(node, agent_id, timeout_ms) do
+            :ok -> acc
+            {:error, _} -> acc + 1
+          end
+        end)
+
+      _ ->
+        1000
+    end
+  end
+
+  defp node_down_events(node) do
+    if Process.whereis(NodeWatchdog) do
+      NodeWatchdog.status()
+      |> Map.get(:recent_down_events, %{})
+      |> Map.get(node, 0)
+    else
+      0
+    end
+  end
+
+  defp placement_weights do
+    cfg = distributed_config()
+
+    cfg
+    |> Keyword.get(:placement_weights, [])
+    |> Enum.into(%{})
   end
 
   defp validate_handoff_target(source_node, target_node) do

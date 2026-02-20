@@ -633,7 +633,7 @@ end
 
 ## Recommended Next Steps
 
-1. **Distributed placement strategy v2** - Add load/health-weighted node scoring (queue depth + latency + failure rate) beyond simple healthy-node filtering.
-2. **Provider failover policy** - Add runtime fallback/health-based provider switching across Ollama/OpenAI/Anthropic.
-3. **Cross-node backpressure propagation** - Feed per-node queue saturation into handoff and auto-placement decisions.
+1. **Provider failover policy** - Add runtime fallback/health-based provider switching across Ollama/OpenAI/Anthropic.
+2. **Cross-node backpressure propagation** - Feed per-node queue saturation into handoff and auto-placement decisions.
+3. **Placement strategy v3** - Add rolling latency/throughput trends and hard capacity constraints per node.
 4. **Durable memory backend beyond DETS** - Add pluggable storage options (e.g., SQLite/Postgres) for larger workloads.

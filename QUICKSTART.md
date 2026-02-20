@@ -157,6 +157,7 @@ Application.put_env(:libcluster, :topologies,
 
 SCR.Distributed.status()
 SCR.Distributed.connect_peers()
+SCR.Distributed.placement_report()
 SCR.Distributed.list_cluster_agents()
 SCR.Distributed.pick_start_node()
 SCR.Distributed.check_cluster_health()
