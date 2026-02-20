@@ -10,6 +10,7 @@ defmodule SCR.Tools.Registry do
   alias SCR.Tools.Policy
   alias SCR.Tools.RateLimiter
   alias SCR.Tools.ToolDescriptor
+  alias SCR.Trace
 
   @name __MODULE__
 
@@ -176,15 +177,20 @@ defmodule SCR.Tools.Registry do
   def handle_call({:execute, tool_name, params, ctx}, _from, state) do
     state = sync_mcp_tools(state)
     normalized_params = normalize_params(params)
+    Trace.put_metadata(ctx)
+    Logger.info("tool.execute.start name=#{tool_name}")
 
     with {:ok, descriptor} <- fetch_descriptor(tool_name, ctx, state),
          :ok <- Policy.authorize(descriptor, normalized_params, ctx),
          :ok <- enforce_rate_limit(descriptor.name),
          {:ok, response} <- execute_with_descriptor(descriptor, normalized_params, ctx),
          :ok <- Policy.validate_result_payload(response, ctx) do
+      Logger.info("tool.execute.ok name=#{tool_name}")
       {:reply, {:ok, response}, state}
     else
       {:error, :mcp_unavailable} ->
+        Logger.warning("tool.execute.mcp_unavailable name=#{tool_name}")
+
         if fallback_to_native_enabled?() do
           case fallback_native(tool_name, normalized_params, ctx, state) do
             {:ok, response} -> {:reply, {:ok, response}, state}
@@ -195,6 +201,7 @@ defmodule SCR.Tools.Registry do
         end
 
       {:error, reason} ->
+        Logger.warning("tool.execute.error name=#{tool_name} reason=#{inspect(reason)}")
         {:reply, {:error, reason}, state}
     end
   end

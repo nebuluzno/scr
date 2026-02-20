@@ -12,8 +12,10 @@ defmodule SCR.Tools.Chain do
   - `"$input.path.to.value"` to inject a nested value from previous output
   """
 
+  require Logger
   alias SCR.Tools.ExecutionContext
   alias SCR.Tools.Registry
+  alias SCR.Trace
 
   @type step :: map() | {String.t(), map()}
 
@@ -24,6 +26,8 @@ defmodule SCR.Tools.Chain do
 
   def execute(chain, initial_input, ctx) when is_list(chain) and length(chain) > 0 do
     normalized_ctx = normalize_context(ctx)
+    Trace.put_metadata(normalized_ctx)
+    Logger.info("tool.chain.start steps=#{length(chain)}")
 
     Enum.reduce_while(Enum.with_index(chain, 1), {:ok, initial_input, []}, fn {step, idx},
                                                                               {:ok, input, steps} ->
@@ -31,17 +35,23 @@ defmodule SCR.Tools.Chain do
            resolved_params <- resolve_params(params_template, input),
            step_ctx <- step_context(normalized_ctx, idx),
            {:ok, result} <- Registry.execute_tool(tool_name, resolved_params, step_ctx) do
+        Logger.info("tool.chain.step.ok index=#{idx} tool=#{tool_name}")
         next_input = Map.get(result, :data, result)
         step_record = %{index: idx, tool: tool_name, params: resolved_params, result: result}
         {:cont, {:ok, next_input, steps ++ [step_record]}}
       else
         {:error, reason} ->
+          Logger.warning("tool.chain.step.error index=#{idx} reason=#{inspect(reason)}")
           {:halt, {:error, %{step: idx, reason: reason}}}
       end
     end)
     |> case do
-      {:ok, output, steps} -> {:ok, %{output: output, steps: steps}}
-      {:error, reason} -> {:error, reason}
+      {:ok, output, steps} ->
+        Logger.info("tool.chain.done steps=#{length(steps)}")
+        {:ok, %{output: output, steps: steps}}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

@@ -7,11 +7,14 @@ defmodule SCR.Agents.WorkerAgent do
   Supports tool calling for enhanced task execution.
   """
 
+  require Logger
+
   alias SCR.Message
   alias SCR.AgentContext
   alias SCR.LLM.Client
   alias SCR.Tools.Registry
   alias SCR.Tools.ExecutionContext
+  alias SCR.Trace
 
   # Client API
 
@@ -36,7 +39,8 @@ defmodule SCR.Agents.WorkerAgent do
   end
 
   def handle_message(%Message{type: :task, payload: %{task: task_data}, from: from}, state) do
-    IO.puts("👷 WorkerAgent received task: #{inspect(task_data[:description])}")
+    Trace.put_metadata(Trace.from_task(task_data, state.agent_id))
+    Logger.info("worker.task.received description=#{inspect(task_data[:description])}")
 
     # Get internal state from context
     internal_state = state.agent_state
@@ -78,6 +82,7 @@ defmodule SCR.Agents.WorkerAgent do
       })
 
     SCR.Supervisor.send_to_agent(from, result_msg)
+    Logger.info("worker.task.completed to=#{from} task_id=#{task_id}")
 
     new_state = %{
       internal_state
@@ -121,7 +126,7 @@ defmodule SCR.Agents.WorkerAgent do
   # Private functions
 
   defp process_task_with_llm(task_type, description, task_id, trace_ctx) do
-    IO.puts("🤖 Using LLM for #{task_type} task: #{description}")
+    Logger.info("worker.llm.start type=#{task_type} task_id=#{task_id}")
 
     context = execution_context(task_id, trace_ctx)
     tools = Registry.get_tool_definitions(context)
@@ -141,7 +146,7 @@ defmodule SCR.Agents.WorkerAgent do
           format_result(task_type, description, task_id, llm_response, :llm_with_tools)
 
         {:error, reason} ->
-          IO.puts("⚠️ LLM with tools failed, falling back: #{inspect(reason)}")
+          Logger.warning("worker.llm.with_tools_failed reason=#{inspect(reason)}")
           process_task_with_llm_fallback(task_type, description, task_id)
       end
     else
@@ -151,7 +156,7 @@ defmodule SCR.Agents.WorkerAgent do
           format_result(task_type, description, task_id, llm_response, :llm)
 
         {:error, reason} ->
-          IO.puts("⚠️ LLM failed, falling back to mock: #{inspect(reason)}")
+          Logger.warning("worker.llm.failed reason=#{inspect(reason)}")
           fallback_process_task(task_type, description, task_id)
       end
     end
@@ -296,7 +301,7 @@ defmodule SCR.Agents.WorkerAgent do
         format_result(task_type, description, task_id, llm_response, :llm)
 
       {:error, reason} ->
-        IO.puts("⚠️ LLM fallback also failed: #{inspect(reason)}")
+        Logger.warning("worker.llm.fallback_failed reason=#{inspect(reason)}")
         fallback_process_task(task_type, description, task_id)
     end
   end
@@ -405,3 +410,5 @@ defmodule SCR.Agents.WorkerAgent do
 
   defp summarize_result(result), do: inspect(result) |> String.slice(0, 240)
 end
+
+require Logger

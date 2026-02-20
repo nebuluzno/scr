@@ -28,6 +28,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Agent context lifecycle policy (retention + periodic cleanup + context stats).
 - `[done]` Execution-context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across planner/worker/tool path.
 - `[done]` Tool composition/chaining utility (`SCR.Tools.Chain`) with step-level error handling.
+- `[done]` Structured logging baseline with trace metadata in queue/planner/worker/tool/chain flow.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -44,6 +45,8 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Rate limiter maintenance: periodic cleanup of expired ETS buckets + limiter stats API.
 - `[done]` Execution-context propagation: `trace_id`, `parent_task_id`, and `subtask_id` are propagated across planner/worker/tool path.
 - `[planned]` Add telemetry events for queue actions, tool-chain step timing, and tool-rate-limit rejections.
+- `[planned]` Add production JSON log profile and OpenTelemetry log/trace export bridge.
+- `[planned]` Expose `trace_id` and execution-context fields in Web UI task/memory views for faster troubleshooting.
 
 ## Tutorial Track (Next Docs Phase)
 - `[done]` Initial step-by-step tutorials in `TUTORIALS.md`:
@@ -155,7 +158,7 @@ end
 - Task scheduling
 - Better resource management
 
-### 3. Structured Logging & Tracing
+### 3. [done] Structured Logging & Tracing
 **Current State:** Basic IO.puts logging
 **Improvement:** Implement structured logging with OpenTelemetry
 

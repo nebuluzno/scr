@@ -13,6 +13,7 @@ It provides:
 - Tool composition helper for pipelines (`SCR.Tools.Chain`)
 - Tool rate limiting guardrail (`SCR.Tools.RateLimiter`)
 - Execution context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across tool calls
+- Structured runtime logging with trace metadata (`SCR.Trace` + logger metadata keys)
 - Phoenix Web UI for monitoring, tasks, memory, and metrics
 
 ## Quick Links
@@ -165,6 +166,10 @@ config :scr, :tool_rate_limit,
 config :scr, :agent_context,
   retention_ms: 3_600_000,
   cleanup_interval_ms: 300_000
+
+config :logger, :console,
+  format: "$time $metadata[$level] $message\n",
+  metadata: [:trace_id, :task_id, :parent_task_id, :subtask_id, :agent_id]
 ```
 
 Quick IEx checks:

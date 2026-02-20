@@ -3,6 +3,10 @@
 
 import Config
 
+config :logger, :console,
+  format: "$time $metadata[$level] $message\n",
+  metadata: [:trace_id, :task_id, :parent_task_id, :subtask_id, :agent_id]
+
 # Default LLM configuration (Ollama for local development)
 # To use OpenAI, change provider to :openai and add your API key
 config :scr, :llm,

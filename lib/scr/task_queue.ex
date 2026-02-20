@@ -6,6 +6,8 @@ defmodule SCR.TaskQueue do
   """
 
   use GenServer
+  require Logger
+  alias SCR.Trace
 
   @type priority :: :high | :normal | :low
   @type task :: map()
@@ -121,11 +123,14 @@ defmodule SCR.TaskQueue do
   @impl true
   def handle_call({:enqueue, _task, _priority}, _from, %{size: size, max_size: max_size} = state)
       when size >= max_size do
+    Logger.warning("queue.enqueue.rejected reason=queue_full")
     next_state = %{state | rejected: state.rejected + 1}
     {:reply, {:error, :queue_full}, next_state}
   end
 
   def handle_call({:enqueue, task, priority}, _from, state) do
+    Trace.put_metadata(Trace.from_task(task))
+    Logger.info("queue.enqueue.accepted priority=#{priority}")
     queue = Map.fetch!(state, priority)
     next_queue = :queue.in(task, queue)
     next_state = state |> Map.put(priority, next_queue) |> increment_size()
@@ -176,12 +181,14 @@ defmodule SCR.TaskQueue do
   end
 
   def handle_call(:pause, _from, state) do
+    Logger.warning("queue.paused")
     next_state = %{state | paused: true}
     broadcast({:queue_paused, %{at: DateTime.utc_now()}})
     {:reply, :ok, next_state}
   end
 
   def handle_call(:resume, _from, state) do
+    Logger.info("queue.resumed")
     next_state = %{state | paused: false}
     broadcast({:queue_resumed, %{at: DateTime.utc_now()}})
     {:reply, :ok, next_state}
@@ -189,6 +196,7 @@ defmodule SCR.TaskQueue do
 
   def handle_call(:drain, _from, state) do
     tasks = drain_tasks(state)
+    Logger.warning("queue.drained count=#{length(tasks)}")
 
     next_state = %{
       state

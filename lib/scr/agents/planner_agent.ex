@@ -16,6 +16,8 @@ defmodule SCR.Agents.PlannerAgent do
   - CriticAgent: Evaluation and feedback
   """
 
+  require Logger
+
   alias SCR.Message
   alias SCR.Agents.WorkerAgent
   alias SCR.Agents.ResearcherAgent
@@ -24,6 +26,7 @@ defmodule SCR.Agents.PlannerAgent do
   alias SCR.AgentContext
   alias SCR.LLM.Client
   alias SCR.TaskQueue
+  alias SCR.Trace
 
   @allowed_agent_types %{
     "worker" => :worker,
@@ -66,7 +69,8 @@ defmodule SCR.Agents.PlannerAgent do
   end
 
   def handle_message(%Message{type: :task, payload: %{task: task_data}, from: _from}, state) do
-    IO.puts("🧠 PlannerAgent received main task: #{inspect(task_data[:description])}")
+    Trace.put_metadata(Trace.from_task(task_data, state.agent_id))
+    Logger.info("planner.task.received description=#{inspect(task_data[:description])}")
     internal_state = state.agent_state
 
     task_data = normalize_main_task(task_data)
@@ -83,10 +87,11 @@ defmodule SCR.Agents.PlannerAgent do
             trace_id: task_data.trace_id
           })
 
+        Logger.info("planner.task.enqueued task_id=#{task_data.task_id} priority=#{priority}")
         {:noreply, maybe_start_next_task(internal_state, state.agent_id)}
 
       {:error, :queue_full} ->
-        IO.puts("⚠️ Task queue full - dropping task #{task_data[:task_id]}")
+        Logger.warning("planner.task.rejected queue_full task_id=#{task_data.task_id}")
         _ = AgentContext.set_status(to_string(task_data.task_id), :rejected_queue_full)
         {:noreply, internal_state}
     end
@@ -101,7 +106,8 @@ defmodule SCR.Agents.PlannerAgent do
   end
 
   def handle_message(%Message{type: :result, payload: %{result: result_data}, from: from}, state) do
-    IO.puts("🧠 PlannerAgent received result from #{from}")
+    Trace.put_metadata(Trace.from_task(result_data, state.agent_id))
+    Logger.info("planner.result.received from=#{from}")
 
     # Get internal state from context
     internal_state = state.agent_state
@@ -114,7 +120,7 @@ defmodule SCR.Agents.PlannerAgent do
 
     # Check if all subtasks are complete
     if length(new_results) >= length(internal_state.subtasks) do
-      IO.puts("🧠 All subtasks completed, sending to CriticAgent")
+      Logger.info("planner.subtasks.completed count=#{length(new_results)}")
 
       # Send to CriticAgent for evaluation
       critic_msg =
@@ -135,18 +141,18 @@ defmodule SCR.Agents.PlannerAgent do
         %Message{type: :critique, payload: %{critique: critique_data}, from: _from},
         state
       ) do
-    IO.puts("🧠 PlannerAgent received critique: #{inspect(critique_data[:feedback])}")
+    Logger.info("planner.critique.received revision=#{critique_data[:revision_requested]}")
 
     # Get internal state from context
     internal_state = state.agent_state
 
     # Check if revision is requested
     if critique_data[:revision_requested] do
-      IO.puts("🧠 Revision requested, re-executing subtasks...")
+      Logger.warning("planner.critique.revision_requested")
       new_state = execute_subtasks(%{internal_state | results: []})
       {:noreply, %{new_state | status: :revising}}
     else
-      IO.puts("🧠 Task approved! Finalizing...")
+      Logger.info("planner.task.approved")
 
       # Store final results in memory
       store_in_memory(:result, %{
@@ -219,7 +225,7 @@ defmodule SCR.Agents.PlannerAgent do
   defp decompose_task_with_llm(task_data) do
     description = Map.get(task_data, :description, "")
 
-    IO.puts("🤖 Using LLM to decompose task: #{description}")
+    Logger.info("planner.decompose.start description=#{inspect(description)}")
 
     prompt = """
     You are a task planning assistant. Break down the following complex task into 3-5 subtasks.
@@ -251,7 +257,7 @@ defmodule SCR.Agents.PlannerAgent do
         parse_llm_subtasks(llm_response)
 
       {:error, reason} ->
-        IO.puts("⚠️ LLM decomposition failed, using rule-based: #{inspect(reason)}")
+        Logger.warning("planner.decompose.fallback reason=#{inspect(reason)}")
         fallback_decompose_task(description)
     end
   end
@@ -275,7 +281,7 @@ defmodule SCR.Agents.PlannerAgent do
 
       _ ->
         # If JSON parsing fails, try to extract subtasks manually
-        IO.puts("⚠️ Could not parse LLM response as JSON, using fallback")
+        Logger.warning("planner.decompose.parse_failed_using_fallback")
         fallback_decompose_task("")
     end
   rescue
@@ -427,7 +433,7 @@ defmodule SCR.Agents.PlannerAgent do
 
       SCR.Supervisor.send_to_agent(agent_id, task_msg)
 
-      IO.puts("🧠 Assigned #{agent_type} task to #{agent_id}")
+      Logger.info("planner.subtask.assigned agent_type=#{agent_type} agent_id=#{agent_id}")
     end)
 
     %{state | worker_pool: Enum.map(sorted_subtasks, & &1.agent_id)}
@@ -444,3 +450,5 @@ defmodule SCR.Agents.PlannerAgent do
     SCR.Supervisor.send_to_agent("memory_1", msg)
   end
 end
+
+require Logger
