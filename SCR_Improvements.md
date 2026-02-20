@@ -31,6 +31,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Structured logging baseline with trace metadata in queue/planner/worker/tool/chain flow.
 - `[done]` Web UI task/memory pages now show execution context (`trace_id`, `parent_task_id`, `subtask_id`) for debugging.
 - `[done]` Telemetry event stream + Prometheus endpoint (`/metrics/prometheus`) for queue/tool/health/runtime metrics.
+- `[done]` Added tool rate-limit telemetry and MCP health/circuit metrics + starter Grafana dashboard JSON.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -56,6 +57,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[idea]` Add optional durable queue backend (`:disk_log` or DETS + replay) to restore queued work across node restarts while keeping current in-memory fast path.
 - `[idea]` Add distributed node mode (`libcluster` + Horde/Swarm-style registry handoff) for cross-node agent spawning and failover experiments.
 - `[idea]` Add `:persistent_term` backed static config cache for hot-path policy/rate-limit lookups, with safe invalidation on config reload.
+- `[idea]` Add alert rule templates (Prometheus/Alertmanager) for MCP circuit-open spikes, queue saturation, and sustained rate-limit rejection bursts.
 
 ## Tutorial Track (Next Docs Phase)
 - `[done]` Initial step-by-step tutorials in `TUTORIALS.md`:

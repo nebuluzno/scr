@@ -74,7 +74,12 @@ defmodule SCR.Tools.MCP.ServerManager do
     payload =
       state.servers
       |> Enum.map(fn {name, server_state} ->
-        %{name: name, healthy: server_state.healthy, failures: server_state.failures}
+        %{
+          name: name,
+          healthy: server_state.healthy,
+          failures: server_state.failures,
+          circuit_open: server_state.circuit_open_until > System.system_time(:millisecond)
+        }
       end)
 
     {:reply, payload, state}
@@ -100,18 +105,23 @@ defmodule SCR.Tools.MCP.ServerManager do
 
   @impl true
   def handle_call({:call, server, tool, params, ctx}, _from, state) do
+    started_at = System.monotonic_time(:millisecond)
     now = System.system_time(:millisecond)
 
     case Map.fetch(state.servers, server) do
       :error ->
+        emit_call_event(server, tool, :mcp_unavailable, started_at)
         {:reply, {:error, :mcp_unavailable}, state}
 
       {:ok, %{circuit_open_until: open_until} = _server_state} when open_until > now ->
+        emit_call_event(server, tool, :circuit_open, started_at)
         {:reply, {:error, :circuit_open}, state}
 
       {:ok, %{conn: nil} = server_state} ->
         server_state = %{server_state | healthy: false}
         state = put_in(state.servers[server], server_state)
+        emit_server_status_event(server, server_state)
+        emit_call_event(server, tool, :mcp_unavailable, started_at)
         {:reply, {:error, :mcp_unavailable}, state}
 
       {:ok, server_state} ->
@@ -128,6 +138,8 @@ defmodule SCR.Tools.MCP.ServerManager do
             }
 
             state = put_in(state.servers[server], server_state)
+            emit_server_status_event(server, server_state)
+            emit_call_event(server, tool, :ok, started_at)
             {:reply, {:ok, result}, state}
 
           {:error, reason, conn} ->
@@ -148,7 +160,10 @@ defmodule SCR.Tools.MCP.ServerManager do
             }
 
             state = put_in(state.servers[server], server_state)
-            {:reply, {:error, map_reason(reason)}, state}
+            mapped_reason = map_reason(reason)
+            emit_server_status_event(server, server_state)
+            emit_call_event(server, tool, mapped_reason, started_at)
+            {:reply, {:error, mapped_reason}, state}
         end
     end
   end
@@ -184,12 +199,13 @@ defmodule SCR.Tools.MCP.ServerManager do
               config: cfg
             }
 
+            emit_server_status_event(name, server_state)
             put_in(acc.servers[name], server_state)
 
           {:error, reason} ->
             Logger.warning("[tools:mcp] failed to initialize server #{name}: #{inspect(reason)}")
 
-            put_in(acc.servers[name], %{
+            server_state = %{
               conn: nil,
               healthy: false,
               failures: 1,
@@ -197,7 +213,10 @@ defmodule SCR.Tools.MCP.ServerManager do
               call_timeout_ms: Map.get(cfg, :call_timeout_ms, state.call_timeout_ms),
               tools: [],
               config: cfg
-            })
+            }
+
+            emit_server_status_event(name, server_state)
+            put_in(acc.servers[name], server_state)
         end
       else
         acc
@@ -215,6 +234,7 @@ defmodule SCR.Tools.MCP.ServerManager do
           end
 
         updated = %{server_state | conn: conn, tools: tools, healthy: healthy}
+        emit_server_status_event(name, updated)
         put_in(acc.servers[name], updated)
       else
         acc
@@ -256,4 +276,37 @@ defmodule SCR.Tools.MCP.ServerManager do
   defp map_reason(:timeout), do: :timeout
   defp map_reason({:rpc_error, _}), do: :mcp_call_failed
   defp map_reason(_), do: :mcp_unavailable
+
+  defp emit_call_event(server, tool, result, started_at_ms) do
+    duration_ms = max(System.monotonic_time(:millisecond) - started_at_ms, 0)
+
+    :telemetry.execute(
+      [:scr, :mcp, :call],
+      %{count: 1, duration_ms: duration_ms},
+      %{server: server, tool: tool, result: normalize_result(result)}
+    )
+  end
+
+  defp emit_server_status_event(server, server_state) do
+    :telemetry.execute(
+      [:scr, :mcp, :server, :status],
+      %{
+        healthy: if(Map.get(server_state, :healthy, false), do: 1, else: 0),
+        failures: Map.get(server_state, :failures, 0),
+        circuit_open:
+          if(Map.get(server_state, :circuit_open_until, 0) > System.system_time(:millisecond),
+            do: 1,
+            else: 0
+          )
+      },
+      %{server: server}
+    )
+  end
+
+  defp normalize_result(:ok), do: :ok
+  defp normalize_result(:timeout), do: :timeout
+  defp normalize_result(:circuit_open), do: :circuit_open
+  defp normalize_result(:mcp_call_failed), do: :mcp_call_failed
+  defp normalize_result(:mcp_unavailable), do: :mcp_unavailable
+  defp normalize_result(_), do: :error
 end

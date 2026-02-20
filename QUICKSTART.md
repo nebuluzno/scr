@@ -126,6 +126,11 @@ SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, 
 curl -s http://localhost:4000/metrics/prometheus | head -n 40
 ```
 
+### Optional: Grafana import
+1. Open Grafana and choose `Dashboards -> Import`
+2. Upload `priv/grafana/scr-runtime-overview.json`
+3. Select your Prometheus datasource and save
+
 ### Optional: test tool chaining utility
 ```elixir
 SCR.Tools.Chain.execute(

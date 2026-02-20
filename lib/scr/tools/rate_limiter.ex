@@ -22,15 +22,18 @@ defmodule SCR.Tools.RateLimiter do
 
     case :ets.lookup(@table, key) do
       [{^key, count, expires_at}] when count >= max_calls and now_ms < expires_at ->
+        emit_rate_limit_event(tool_name, :rejected)
         {:error, :rate_limited}
 
       [{^key, count, expires_at}] when now_ms < expires_at ->
         true = :ets.insert(@table, {key, count + 1, expires_at})
+        emit_rate_limit_event(tool_name, :allowed)
         :ok
 
       _ ->
         expires_at = now_ms + window_ms
         true = :ets.insert(@table, {key, 1, expires_at})
+        emit_rate_limit_event(tool_name, :allowed)
         :ok
     end
   end
@@ -88,5 +91,13 @@ defmodule SCR.Tools.RateLimiter do
 
   defp window_bucket(window_ms) when is_integer(window_ms) and window_ms > 0 do
     div(System.system_time(:millisecond), window_ms)
+  end
+
+  defp emit_rate_limit_event(tool_name, result) do
+    :telemetry.execute(
+      [:scr, :tools, :rate_limit],
+      %{count: 1},
+      %{tool: tool_name, result: result}
+    )
   end
 end

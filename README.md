@@ -212,6 +212,16 @@ Prometheus scrape check:
 curl -s http://localhost:4000/metrics/prometheus | head -n 40
 ```
 
+### Grafana Starter Dashboard
+Import the starter dashboard JSON:
+- `priv/grafana/scr-runtime-overview.json`
+
+It includes panels for:
+- Queue depth
+- Tool rate-limit decisions
+- MCP call outcomes and p95 latency
+- MCP server health/failure/circuit-open state
+
 ## MCP Smoke Check (Dev)
 Use this to validate a real MCP server integration locally:
 ```bash

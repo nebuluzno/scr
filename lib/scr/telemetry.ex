@@ -72,6 +72,37 @@ defmodule SCR.Telemetry do
         measurement: :count,
         tags: [:tool, :source, :result]
       ),
+      counter("scr.tools.rate_limit.total",
+        event_name: [:scr, :tools, :rate_limit],
+        measurement: :count,
+        tags: [:tool, :result]
+      ),
+      counter("scr.mcp.calls.total",
+        event_name: [:scr, :mcp, :call],
+        measurement: :count,
+        tags: [:server, :tool, :result]
+      ),
+      distribution("scr.mcp.calls.duration.milliseconds",
+        event_name: [:scr, :mcp, :call],
+        measurement: :duration_ms,
+        tags: [:server, :tool, :result],
+        reporter_options: [buckets: [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000]]
+      ),
+      last_value("scr.mcp.server.healthy",
+        event_name: [:scr, :mcp, :server, :status],
+        measurement: :healthy,
+        tags: [:server]
+      ),
+      last_value("scr.mcp.server.failures",
+        event_name: [:scr, :mcp, :server, :status],
+        measurement: :failures,
+        tags: [:server]
+      ),
+      last_value("scr.mcp.server.circuit_open",
+        event_name: [:scr, :mcp, :server, :status],
+        measurement: :circuit_open,
+        tags: [:server]
+      ),
       counter("scr.health.check.total",
         event_name: [:scr, :health, :check],
         measurement: :count,
@@ -109,6 +140,7 @@ defmodule SCR.Telemetry do
 
   def emit_runtime_stats do
     emit_task_queue_stats()
+    emit_mcp_stats()
     emit_health_stats()
     emit_llm_stats()
   end
@@ -144,6 +176,26 @@ defmodule SCR.Telemetry do
           },
           %{}
         )
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp emit_mcp_stats do
+    case safe_call(fn -> SCR.Tools.MCP.ServerManager.list_servers() end) do
+      {:ok, servers} when is_list(servers) ->
+        Enum.each(servers, fn server ->
+          :telemetry.execute(
+            [:scr, :mcp, :server, :status],
+            %{
+              healthy: if(Map.get(server, :healthy, false), do: 1, else: 0),
+              failures: Map.get(server, :failures, 0),
+              circuit_open: if(Map.get(server, :circuit_open, false), do: 1, else: 0)
+            },
+            %{server: Map.get(server, :name, "unknown")}
+          )
+        end)
 
       _ ->
         :ok
