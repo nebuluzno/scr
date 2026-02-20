@@ -11,6 +11,21 @@ config :scr, :llm,
   default_model: System.get_env("LLM_MODEL") || "llama2",
   timeout: 60_000
 
+config :scr, :tools,
+  safety_mode: :strict,
+  fallback_to_native: false,
+  max_params_bytes: 20_000,
+  max_result_bytes: 100_000,
+  strict_native_allowlist: [],
+  mcp: [
+    enabled: false,
+    startup_timeout_ms: 5_000,
+    call_timeout_ms: 10_000,
+    refresh_interval_ms: 60_000,
+    max_failures: 3,
+    servers: %{}
+  ]
+
 # Import environment-specific config
 if config_env() == :dev do
   import_config "dev.exs"

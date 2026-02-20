@@ -7,30 +7,32 @@ defmodule SCRWeb.DashboardLive do
       Phoenix.PubSub.subscribe(SCR.PubSub, "agents")
       Phoenix.PubSub.subscribe(SCR.PubSub, "tasks")
       Phoenix.PubSub.subscribe(SCR.PubSub, "metrics")
-      
+
       # Schedule periodic updates
       :timer.send_interval(5000, :refresh_stats)
     end
-    
-    socket = assign(socket, 
-      agents: get_agents(),
-      agent_count: get_agent_count(),
-      cache_stats: get_cache_stats(),
-      metrics_stats: get_metrics_stats(),
-      recent_tasks: get_recent_tasks(),
-      tools: get_tools()
-    )
-    
+
+    socket =
+      assign(socket,
+        agents: get_agents(),
+        agent_count: get_agent_count(),
+        cache_stats: get_cache_stats(),
+        metrics_stats: get_metrics_stats(),
+        recent_tasks: get_recent_tasks(),
+        tools: get_tools()
+      )
+
     {:ok, socket}
   end
 
   @impl true
   def handle_info(:refresh_stats, socket) do
-    {:noreply, assign(socket,
-      agent_count: get_agent_count(),
-      cache_stats: get_cache_stats(),
-      metrics_stats: get_metrics_stats()
-    )}
+    {:noreply,
+     assign(socket,
+       agent_count: get_agent_count(),
+       cache_stats: get_cache_stats(),
+       metrics_stats: get_metrics_stats()
+     )}
   end
 
   @impl true
@@ -47,9 +49,11 @@ defmodule SCRWeb.DashboardLive do
 
   @impl true
   def handle_info({:agent_status, agent_id, status}, socket) do
-    agents = Enum.map(socket.assigns.agents, fn a ->
-      if a.agent_id == agent_id, do: Map.put(a, :status, status), else: a
-    end)
+    agents =
+      Enum.map(socket.assigns.agents, fn a ->
+        if a.agent_id == agent_id, do: Map.put(a, :status, status), else: a
+      end)
+
     {:noreply, assign(socket, agents: agents)}
   end
 
@@ -196,7 +200,7 @@ defmodule SCRWeb.DashboardLive do
       []
     end
   end
-  
+
   # Safely check if an ETS table exists
   defp ets_table_exists?(table_name) do
     case :ets.whereis(table_name) do
@@ -208,12 +212,9 @@ defmodule SCRWeb.DashboardLive do
   end
 
   defp get_tools do
-    SCR.Tools.Registry.list_tools()
-    |> Enum.map(fn name ->
-      case SCR.Tools.Registry.get_tool(name) do
-        {:ok, module} -> %{name: name, description: apply(module, :description, [])}
-        _ -> %{name: name, description: "Unknown"}
-      end
+    SCR.Tools.Registry.list_tools(descriptors: true)
+    |> Enum.map(fn descriptor ->
+      %{name: descriptor.name, description: descriptor.description, source: descriptor.source}
     end)
   end
 

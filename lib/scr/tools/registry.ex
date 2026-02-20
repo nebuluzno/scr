@@ -1,13 +1,14 @@
 defmodule SCR.Tools.Registry do
   @moduledoc """
-  Registry for managing available tools in SCR.
-  
-  Agents can discover and call tools through this registry.
-  Tools are registered when the application starts or dynamically at runtime.
+  Unified registry for native and MCP-backed tools.
   """
 
   use GenServer
   require Logger
+
+  alias SCR.Tools.ExecutionContext
+  alias SCR.Tools.Policy
+  alias SCR.Tools.ToolDescriptor
 
   @name __MODULE__
 
@@ -19,178 +20,372 @@ defmodule SCR.Tools.Registry do
     GenServer.start_link(__MODULE__, default_tools, name: name)
   end
 
-  @doc """
-  Registers a tool module with the registry.
-  """
   def register_tool(module) when is_atom(module) do
     GenServer.call(@name, {:register, module})
   end
 
-  @doc """
-  Unregisters a tool from the registry.
-  """
   def unregister_tool(tool_name) when is_binary(tool_name) do
     GenServer.call(@name, {:unregister, tool_name})
   end
 
-  @doc """
-  Lists all registered tools.
-  """
-  def list_tools do
-    GenServer.call(@name, :list_tools)
+  def list_tools(opts \\ []) do
+    GenServer.call(@name, {:list_tools, opts})
   end
 
-  @doc """
-  Gets a tool by name.
-  """
   def get_tool(tool_name) do
     GenServer.call(@name, {:get_tool, tool_name})
   end
 
-  @doc """
-  Gets all tool definitions in OpenAI function calling format.
-  """
-  def get_tool_definitions do
-    GenServer.call(@name, :get_tool_definitions)
+  def get_tool_descriptor(tool_name) do
+    GenServer.call(@name, {:get_tool_descriptor, tool_name})
   end
 
-  @doc """
-  Executes a tool by name with the given parameters.
-  """
+  def get_tool_definitions(ctx \\ nil) do
+    ctx = normalize_context(ctx)
+    GenServer.call(@name, {:get_tool_definitions, ctx})
+  end
+
   def execute_tool(tool_name, params) do
-    GenServer.call(@name, {:execute, tool_name, params})
+    execute_tool(tool_name, params, ExecutionContext.new())
   end
 
-  @doc """
-  Checks if a tool with the given name exists.
-  """
+  def execute_tool(tool_name, params, %ExecutionContext{} = ctx) do
+    GenServer.call(@name, {:execute, tool_name, params, ctx})
+  end
+
   def has_tool?(tool_name) do
     GenServer.call(@name, {:has_tool, tool_name})
   end
 
-  # Server Callbacks
+  # Server callbacks
 
   @impl true
   def init(default_tools) when is_list(default_tools) do
     state = %{
-      tools: %{}
+      native_tools: %{},
+      mcp_tools: %{}
     }
-    
-    # Register default tools if provided
-    state = Enum.reduce(default_tools, state, fn tool_module, acc_state ->
-      case register_tool_in_state(tool_module, acc_state) do
-        {:ok, _name, new_state} -> new_state
-        _ -> acc_state
-      end
-    end)
-    
-    {:ok, state}
-  end
-  
-  defp register_tool_in_state(module, state) do
-    case apply(module, :name, []) do
-      tool_name when is_binary(tool_name) ->
-        if Map.has_key?(state.tools, tool_name) do
-          {:error, :already_registered}
-        else
-          # Call on_register callback if it exists
-          if function_exported?(module, :on_register, 0) do
-            apply(module, :on_register, [])
-          end
-          
-          new_state = put_in(state.tools[tool_name], module)
-          Logger.info("Registered tool: #{tool_name}")
-          {:ok, tool_name, new_state}
+
+    state =
+      Enum.reduce(default_tools, state, fn tool_module, acc_state ->
+        case register_tool_in_state(tool_module, acc_state) do
+          {:ok, _name, new_state} -> new_state
+          _ -> acc_state
         end
-      
-      _ ->
-        {:error, :invalid_tool_name}
-    end
+      end)
+
+    {:ok, state}
   end
 
   @impl true
   def handle_call({:register, module}, _from, state) do
-    case apply(module, :name, []) do
-      tool_name when is_binary(tool_name) ->
-        if Map.has_key?(state.tools, tool_name) do
-          Logger.warning("Tool #{tool_name} already registered, skipping")
-          {:reply, {:error, :already_registered}, state}
-        else
-          # Call on_register callback if it exists
-          if function_exported?(module, :on_register, 0) do
-            apply(module, :on_register, [])
-          end
-          
-          new_state = put_in(state.tools[tool_name], module)
-          Logger.info("Registered tool: #{tool_name}")
-          {:reply, {:ok, tool_name}, new_state}
-        end
-      
-      _ ->
-        {:reply, {:error, :invalid_tool_name}, state}
+    case register_tool_in_state(module, state) do
+      {:ok, tool_name, new_state} ->
+        Logger.info("Registered native tool: #{tool_name}")
+        {:reply, {:ok, tool_name}, new_state}
+
+      {:error, :already_registered} ->
+        Logger.warning("Tool #{apply(module, :name, [])} already registered, skipping")
+        {:reply, {:error, :already_registered}, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 
   @impl true
   def handle_call({:unregister, tool_name}, _from, state) do
-    case Map.fetch(state.tools, tool_name) do
-      {:ok, module} ->
-        # Call on_unregister callback if it exists
-        if function_exported?(module, :on_unregister, 0) do
-          apply(module, :on_unregister, [])
-        end
-        
-        new_state = Map.delete(state.tools, tool_name)
-        Logger.info("Unregistered tool: #{tool_name}")
+    case Map.fetch(state.native_tools, tool_name) do
+      {:ok, %ToolDescriptor{module: module}} ->
+        if function_exported?(module, :on_unregister, 0), do: apply(module, :on_unregister, [])
+
+        new_state = %{state | native_tools: Map.delete(state.native_tools, tool_name)}
+        Logger.info("Unregistered native tool: #{tool_name}")
         {:reply, :ok, new_state}
-      
+
       :error ->
         {:reply, {:error, :not_found}, state}
     end
   end
 
   @impl true
-  def handle_call(:list_tools, _from, state) do
-    tools = 
-      state.tools
-      |> Map.keys()
-      |> Enum.sort()
-    
-    {:reply, tools, state}
+  def handle_call({:list_tools, opts}, _from, state) do
+    state = sync_mcp_tools(state)
+
+    ctx =
+      opts
+      |> Keyword.get(:context, ExecutionContext.new())
+      |> normalize_context()
+
+    descriptors = all_descriptors(state)
+    filtered = Policy.filter_tools(descriptors, ctx)
+
+    if Keyword.get(opts, :descriptors, false) do
+      {:reply, filtered, state}
+    else
+      names =
+        filtered
+        |> Enum.map(& &1.name)
+        |> Enum.uniq()
+        |> Enum.sort()
+
+      {:reply, names, state}
+    end
   end
 
   @impl true
   def handle_call({:get_tool, tool_name}, _from, state) do
-    result = Map.fetch(state.tools, tool_name)
+    state = sync_mcp_tools(state)
+
+    result =
+      case Map.get(state.native_tools, tool_name) do
+        %ToolDescriptor{module: module} -> {:ok, module}
+        _ -> {:error, :not_found}
+      end
+
     {:reply, result, state}
   end
 
   @impl true
-  def handle_call(:get_tool_definitions, _from, state) do
-    definitions = 
-      state.tools
-      |> Map.values()
-      |> Enum.map(fn module ->
-        apply(module, :to_openai_format, [])
-      end)
-    
+  def handle_call({:get_tool_descriptor, tool_name}, _from, state) do
+    state = sync_mcp_tools(state)
+    descriptor = resolve_descriptor(tool_name, ExecutionContext.new(), state)
+
+    case descriptor do
+      nil -> {:reply, {:error, :not_found}, state}
+      d -> {:reply, {:ok, d}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:get_tool_definitions, ctx}, _from, state) do
+    state = sync_mcp_tools(state)
+
+    definitions =
+      state
+      |> all_descriptors()
+      |> Policy.filter_tools(ctx)
+      |> choose_preferred_descriptors(ctx)
+      |> Enum.map(&to_openai_tool_definition/1)
+
     {:reply, definitions, state}
   end
 
   @impl true
-  def handle_call({:execute, tool_name, params}, _from, state) do
-    case Map.fetch(state.tools, tool_name) do
-      {:ok, module} ->
-        result = apply(module, :execute, [params])
-        {:reply, result, state}
-      
-      :error ->
-        {:reply, {:error, "Tool #{tool_name} not found"}, state}
+  def handle_call({:execute, tool_name, params, ctx}, _from, state) do
+    state = sync_mcp_tools(state)
+    normalized_params = normalize_params(params)
+
+    with {:ok, descriptor} <- fetch_descriptor(tool_name, ctx, state),
+         :ok <- Policy.authorize(descriptor, normalized_params, ctx),
+         {:ok, response} <- execute_with_descriptor(descriptor, normalized_params, ctx),
+         :ok <- Policy.validate_result_payload(response, ctx) do
+      {:reply, {:ok, response}, state}
+    else
+      {:error, :mcp_unavailable} ->
+        if fallback_to_native_enabled?() do
+          case fallback_native(tool_name, normalized_params, ctx, state) do
+            {:ok, response} -> {:reply, {:ok, response}, state}
+            {:error, reason} -> {:reply, {:error, reason}, state}
+          end
+        else
+          {:reply, {:error, :mcp_unavailable}, state}
+        end
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 
   @impl true
   def handle_call({:has_tool, tool_name}, _from, state) do
-    {:reply, Map.has_key?(state.tools, tool_name), state}
+    state = sync_mcp_tools(state)
+
+    has_tool =
+      Map.has_key?(state.native_tools, tool_name) or
+        Map.has_key?(state.mcp_tools, tool_name)
+
+    {:reply, has_tool, state}
+  end
+
+  defp register_tool_in_state(module, state) do
+    case apply(module, :name, []) do
+      tool_name when is_binary(tool_name) ->
+        if Map.has_key?(state.native_tools, tool_name) do
+          {:error, :already_registered}
+        else
+          if function_exported?(module, :on_register, 0), do: apply(module, :on_register, [])
+
+          descriptor = %ToolDescriptor{
+            name: tool_name,
+            source: :native,
+            module: module,
+            description: apply(module, :description, []),
+            schema: normalize_schema(apply(module, :parameters_schema, [])),
+            timeout_ms: 10_000,
+            tags: ["native"],
+            safety_level: :standard
+          }
+
+          new_state = put_in(state.native_tools[tool_name], descriptor)
+          {:ok, tool_name, new_state}
+        end
+
+      _ ->
+        {:error, :invalid_tool_name}
+    end
+  end
+
+  defp execute_with_descriptor(%ToolDescriptor{source: :native} = descriptor, params, ctx) do
+    started_at = System.monotonic_time(:millisecond)
+
+    case apply(descriptor.module, :execute, [params]) do
+      {:ok, result} ->
+        latency = System.monotonic_time(:millisecond) - started_at
+        {:ok, wrap_result(result, descriptor, latency, ctx)}
+
+      {:error, reason} ->
+        {:error, reason}
+
+      other ->
+        {:ok, wrap_result(other, descriptor, 0, ctx)}
+    end
+  rescue
+    e ->
+      {:error, {:execution_error, Exception.message(e)}}
+  end
+
+  defp execute_with_descriptor(%ToolDescriptor{source: :mcp} = descriptor, params, ctx) do
+    started_at = System.monotonic_time(:millisecond)
+
+    case SCR.Tools.MCP.ServerManager.call(descriptor.server, descriptor.name, params, ctx) do
+      {:ok, result} ->
+        latency = System.monotonic_time(:millisecond) - started_at
+        {:ok, wrap_result(result, descriptor, latency, ctx)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp wrap_result(result, descriptor, latency_ms, ctx) do
+    %{
+      data: result,
+      meta: %{
+        source: descriptor.source,
+        tool: descriptor.name,
+        server: descriptor.server,
+        latency_ms: latency_ms,
+        trace_id: ctx.trace_id
+      }
+    }
+  end
+
+  defp fallback_native(tool_name, params, ctx, state) do
+    case Map.get(state.native_tools, tool_name) do
+      nil -> {:error, :mcp_unavailable}
+      descriptor -> execute_with_descriptor(descriptor, params, ctx)
+    end
+  end
+
+  defp fetch_descriptor(tool_name, %ExecutionContext{} = ctx, state) do
+    case resolve_descriptor(tool_name, ctx, state) do
+      nil -> {:error, :not_found}
+      descriptor -> {:ok, descriptor}
+    end
+  end
+
+  defp resolve_descriptor(tool_name, %ExecutionContext{source: :mcp}, state) do
+    case Map.get(state.mcp_tools, tool_name, []) do
+      [first | _] -> first
+      [] -> nil
+    end
+  end
+
+  defp resolve_descriptor(tool_name, %ExecutionContext{source: :native}, state) do
+    Map.get(state.native_tools, tool_name)
+  end
+
+  defp resolve_descriptor(tool_name, _ctx, state) do
+    Map.get(state.native_tools, tool_name) ||
+      case Map.get(state.mcp_tools, tool_name, []) do
+        [first | _] -> first
+        [] -> nil
+      end
+  end
+
+  defp all_descriptors(state) do
+    native = Map.values(state.native_tools)
+    mcp = state.mcp_tools |> Map.values() |> List.flatten()
+    native ++ mcp
+  end
+
+  defp choose_preferred_descriptors(descriptors, ctx) do
+    descriptors
+    |> Enum.group_by(& &1.name)
+    |> Enum.map(fn {_name, group} ->
+      case ctx.source do
+        :mcp ->
+          Enum.find(group, &(&1.source == :mcp)) || Enum.find(group, &(&1.source == :native))
+
+        :native ->
+          Enum.find(group, &(&1.source == :native)) || Enum.find(group, &(&1.source == :mcp))
+
+        _ ->
+          Enum.find(group, &(&1.source == :native)) || Enum.find(group, &(&1.source == :mcp))
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp to_openai_tool_definition(%ToolDescriptor{source: :native, module: module})
+       when not is_nil(module) do
+    apply(module, :to_openai_format, [])
+  end
+
+  defp to_openai_tool_definition(%ToolDescriptor{} = descriptor) do
+    %{
+      type: "function",
+      function: %{
+        name: descriptor.name,
+        description: descriptor.description,
+        parameters: normalize_schema(descriptor.schema)
+      }
+    }
+  end
+
+  defp normalize_context(%ExecutionContext{} = ctx), do: ctx
+  defp normalize_context(ctx) when is_map(ctx), do: ExecutionContext.new(ctx)
+  defp normalize_context(_), do: ExecutionContext.new()
+
+  defp normalize_schema(schema) when is_map(schema), do: schema
+  defp normalize_schema(_), do: %{"type" => "object", "properties" => %{}}
+
+  defp normalize_params(params) when is_map(params) do
+    Map.new(params, fn
+      {k, v} when is_atom(k) -> {Atom.to_string(k), normalize_value(v)}
+      {k, v} -> {k, normalize_value(v)}
+    end)
+  end
+
+  defp normalize_params(_), do: %{}
+
+  defp normalize_value(value) when is_map(value), do: normalize_params(value)
+  defp normalize_value(value) when is_list(value), do: Enum.map(value, &normalize_value/1)
+  defp normalize_value(value), do: value
+
+  defp sync_mcp_tools(state) do
+    if Process.whereis(SCR.Tools.MCP.ServerManager) do
+      mcp_descriptors = SCR.Tools.MCP.ServerManager.list_all_tools()
+      mcp_tools = Enum.group_by(mcp_descriptors, & &1.name)
+      %{state | mcp_tools: mcp_tools}
+    else
+      state
+    end
+  end
+
+  defp fallback_to_native_enabled? do
+    tools_cfg = Application.get_env(:scr, :tools, [])
+    Keyword.get(tools_cfg, :fallback_to_native, false)
   end
 end

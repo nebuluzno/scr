@@ -19,7 +19,7 @@ defmodule SCR do
 
   def start(_type, _args) do
     IO.puts("\n🔧 Starting SCR Application...")
-    
+
     # Create supervisor tree
     children = [
       # Start PubSub for real-time updates
@@ -29,12 +29,14 @@ defmodule SCR do
       {SCR.LLM.Metrics, []},
       # Start Tools Registry with default tools
       {SCR.Tools.Registry, default_tools: @default_tools},
+      # Start MCP server manager (no-op unless enabled in config)
+      {SCR.Tools.MCP.ServerManager, []},
       # Start Phoenix endpoint
       SCRWeb.Endpoint,
       # Start the main SCR supervisor
       {SCR.Supervisor, []}
     ]
-    
+
     Supervisor.start_link(children, strategy: :one_for_one, name: SCR.Supervisor.Tree)
   end
 end
