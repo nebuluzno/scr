@@ -93,6 +93,23 @@ SCR.LLM.Client.ping()
 SCR.Tools.Registry.list_tools()
 SCR.LLM.Cache.stats()
 SCR.LLM.Metrics.stats()
+SCR.TaskQueue.stats()
+SCR.HealthCheck.stats()
+SCR.AgentContext.list() |> Enum.take(3)
+```
+
+### Optional: verify tool rate limiter
+```elixir
+Application.put_env(:scr, :tool_rate_limit,
+  enabled: true,
+  default_max_calls: 100,
+  default_window_ms: 60_000,
+  per_tool: %{"calculator" => %{max_calls: 1, window_ms: 60_000}}
+)
+
+SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, "b" => 2})
+SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 2, "b" => 3})
+# second call => {:error, :rate_limited}
 ```
 
 ## 6. Troubleshooting

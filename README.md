@@ -125,6 +125,36 @@ mix compile
 mix phx.server
 ```
 
+## Runtime Controls
+Tune these in `/Users/lars/Documents/SCR/config/config.exs`:
+
+```elixir
+config :scr, :task_queue, max_size: 100
+
+config :scr, :health_check,
+  interval_ms: 15_000,
+  auto_heal: true
+
+config :scr, :tool_rate_limit,
+  enabled: true,
+  default_max_calls: 60,
+  default_window_ms: 60_000,
+  per_tool: %{
+    "calculator" => %{max_calls: 30, window_ms: 60_000}
+  }
+```
+
+Quick IEx checks:
+
+```bash
+iex -S mix
+```
+```elixir
+SCR.TaskQueue.stats()
+SCR.HealthCheck.stats()
+SCR.AgentContext.list() |> Enum.take(3)
+```
+
 ## MCP Smoke Check (Dev)
 Use this to validate a real MCP server integration locally:
 ```bash
