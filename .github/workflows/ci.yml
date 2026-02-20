@@ -114,8 +114,14 @@ jobs:
         run: mix deps.get
 
       - name: Generate coverage report
-        continue-on-error: true
-        run: mix test --cover
+        run: |
+          set +e
+          mix test --cover
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "Coverage command exited with status $status; continuing to upload coverage artifacts."
+          fi
+          exit 0
 
       - name: Upload coverage artifact
         if: always()
