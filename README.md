@@ -106,6 +106,11 @@ Dashboard now includes queue controls:
 - Clear queued tasks
 - Drain queue (marks drained tasks in shared context)
 
+Dashboard UX includes:
+- Density toggle in the top navigation (`Compact`/`Comfortable`, persisted in browser storage)
+- Tool Health panel summarizing MCP server health, open circuits, and recent denied tool decisions
+- Subtle live refresh transitions for stats and list updates
+
 Queue scheduler notes:
 - Dequeue path uses weighted fairness across workload classes within each priority lane.
 - Fairness telemetry: `[:scr, :task_queue, :fairness]`.

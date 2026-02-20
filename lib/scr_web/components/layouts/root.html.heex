@@ -24,6 +24,9 @@
           <span></span>
           <span></span>
         </label>
+        <button type="button" id="density-toggle" class="density-toggle" aria-label="Toggle compact density">
+          Compact
+        </button>
         <ul class="nav-links" id="nav-menu">
           <li><a href="/">Dashboard</a></li>
           <li><a href="/agents">Agents</a></li>
@@ -44,5 +47,37 @@
         <p>Supervised Cognitive Runtime v0.5.0-alpha</p>
       </div>
     </footer>
+    <script>
+      (() => {
+        const storageKey = "scr.ui.density";
+
+        const applyDensity = (density) => {
+          const normalized = density === "compact" ? "compact" : "comfortable";
+          document.body.dataset.density = normalized;
+          const btn = document.getElementById("density-toggle");
+
+          if (btn) {
+            btn.textContent = normalized === "compact" ? "Comfortable" : "Compact";
+            btn.setAttribute("aria-pressed", normalized === "compact" ? "true" : "false");
+          }
+        };
+
+        const loadDensity = () => localStorage.getItem(storageKey) || "comfortable";
+
+        document.addEventListener("DOMContentLoaded", () => {
+          applyDensity(loadDensity());
+
+          const btn = document.getElementById("density-toggle");
+
+          if (btn) {
+            btn.addEventListener("click", () => {
+              const nextDensity = document.body.dataset.density === "compact" ? "comfortable" : "compact";
+              localStorage.setItem(storageKey, nextDensity);
+              applyDensity(nextDensity);
+            });
+          }
+        });
+      })();
+    </script>
   </body>
 </html>

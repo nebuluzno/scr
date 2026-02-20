@@ -14,6 +14,9 @@ defmodule SCRWeb.DashboardLive do
       :timer.send_interval(5000, :refresh_stats)
     end
 
+    recent_tool_decisions = get_recent_tool_decisions()
+    tool_health = get_tool_health(recent_tool_decisions)
+
     socket =
       assign(socket,
         agents: get_agents(),
@@ -23,8 +26,10 @@ defmodule SCRWeb.DashboardLive do
         queue_stats: get_queue_stats(),
         recent_tasks: get_recent_tasks(),
         tools: get_tools(),
-        recent_tool_decisions: get_recent_tool_decisions(),
-        placement_observability: get_placement_observability()
+        recent_tool_decisions: recent_tool_decisions,
+        tool_health: tool_health,
+        placement_observability: get_placement_observability(),
+        live_tick: false
       )
 
     {:ok, socket}
@@ -32,27 +37,36 @@ defmodule SCRWeb.DashboardLive do
 
   @impl true
   def handle_info(:refresh_stats, socket) do
+    recent_tool_decisions = get_recent_tool_decisions()
+
     {:noreply,
-     assign(socket,
+     socket
+     |> assign(
        agent_count: get_agent_count(),
        cache_stats: get_cache_stats(),
        metrics_stats: get_metrics_stats(),
        queue_stats: get_queue_stats(),
-       recent_tool_decisions: get_recent_tool_decisions(),
+       recent_tool_decisions: recent_tool_decisions,
+       tool_health: get_tool_health(recent_tool_decisions),
        placement_observability: get_placement_observability()
-     )}
+     )
+     |> toggle_live_tick()}
   end
 
   @impl true
   def handle_info({:agent_started, agent}, socket) do
     agents = [agent | socket.assigns.agents]
-    {:noreply, assign(socket, agents: agents, agent_count: length(agents))}
+
+    {:noreply,
+     socket |> assign(agents: agents, agent_count: length(agents)) |> toggle_live_tick()}
   end
 
   @impl true
   def handle_info({:agent_stopped, agent_id}, socket) do
     agents = Enum.reject(socket.assigns.agents, fn a -> a.agent_id == agent_id end)
-    {:noreply, assign(socket, agents: agents, agent_count: length(agents))}
+
+    {:noreply,
+     socket |> assign(agents: agents, agent_count: length(agents)) |> toggle_live_tick()}
   end
 
   @impl true
@@ -62,43 +76,56 @@ defmodule SCRWeb.DashboardLive do
         if a.agent_id == agent_id, do: Map.put(a, :status, status), else: a
       end)
 
-    {:noreply, assign(socket, agents: agents)}
+    {:noreply, socket |> assign(agents: agents) |> toggle_live_tick()}
   end
 
   @impl true
   def handle_info({:task_created, task}, socket) do
     tasks = [task | socket.assigns.recent_tasks] |> Enum.take(5)
-    {:noreply, assign(socket, recent_tasks: tasks, queue_stats: get_queue_stats())}
+
+    {:noreply,
+     socket |> assign(recent_tasks: tasks, queue_stats: get_queue_stats()) |> toggle_live_tick()}
   end
 
   @impl true
   def handle_info({:metrics_updated, _metrics}, socket) do
-    {:noreply, assign(socket, metrics_stats: get_metrics_stats())}
+    {:noreply, socket |> assign(metrics_stats: get_metrics_stats()) |> toggle_live_tick()}
   end
 
   @impl true
   def handle_info({:queue_paused, _payload}, socket) do
-    {:noreply, assign(socket, queue_stats: get_queue_stats())}
+    {:noreply, socket |> assign(queue_stats: get_queue_stats()) |> toggle_live_tick()}
   end
 
   @impl true
   def handle_info({:queue_resumed, _payload}, socket) do
-    {:noreply, assign(socket, queue_stats: get_queue_stats())}
+    {:noreply, socket |> assign(queue_stats: get_queue_stats()) |> toggle_live_tick()}
   end
 
   @impl true
   def handle_info({:queue_drained, _payload}, socket) do
-    {:noreply, assign(socket, queue_stats: get_queue_stats())}
+    {:noreply, socket |> assign(queue_stats: get_queue_stats()) |> toggle_live_tick()}
   end
 
   @impl true
   def handle_info({:placement_observability_updated, _snapshot}, socket) do
-    {:noreply, assign(socket, placement_observability: get_placement_observability())}
+    {:noreply,
+     socket
+     |> assign(placement_observability: get_placement_observability())
+     |> toggle_live_tick()}
   end
 
   @impl true
   def handle_info({:tool_audit_updated, _entry}, socket) do
-    {:noreply, assign(socket, recent_tool_decisions: get_recent_tool_decisions())}
+    recent_tool_decisions = get_recent_tool_decisions()
+
+    {:noreply,
+     socket
+     |> assign(
+       recent_tool_decisions: recent_tool_decisions,
+       tool_health: get_tool_health(recent_tool_decisions)
+     )
+     |> toggle_live_tick()}
   end
 
   @impl true
@@ -147,7 +174,7 @@ defmodule SCRWeb.DashboardLive do
   def render(assigns) do
     ~H"""
     <div class="container fade-in">
-      <div class="dashboard">
+      <div class={"dashboard #{if @live_tick, do: "live-update-a", else: "live-update-b"}"}>
         <div class="dashboard-header">
           <h1>Supervised Cognitive Runtime</h1>
           <p class="subtitle">Multi-agent cognition runtime on BEAM</p>
@@ -230,8 +257,13 @@ defmodule SCRWeb.DashboardLive do
               <div class="quick-tools">
                 <%= for tool <- @tools |> Enum.take(4) do %>
                   <a href="/tools" class="quick-tool-item">
-                    <span class="tool-icon"><%= tool_icon(tool.name) %></span>
-                    <span><%= format_tool_name(tool.name) %></span>
+                    <div class="quick-tool-main">
+                      <span class="tool-icon"><%= tool_icon(tool.name) %></span>
+                      <span><%= format_tool_name(tool.name) %></span>
+                    </div>
+                    <span class={"badge #{if tool.source == :native, do: "badge-info", else: "badge-secondary"}"}>
+                      <%= tool.source %>
+                    </span>
                   </a>
                 <% end %>
               </div>
@@ -265,18 +297,39 @@ defmodule SCRWeb.DashboardLive do
 
           <div class="card">
             <div class="card-header">
+              <h3 class="card-title">🧰 Tool Health</h3>
+            </div>
+            <div class="card-body">
+              <div class="queue-breakdown">
+                <p>MCP Healthy: <strong><%= @tool_health.mcp_healthy %>/<%= @tool_health.mcp_total %></strong></p>
+                <p>Circuits Open: <strong><%= @tool_health.circuit_open %></strong></p>
+                <p>MCP Failures: <strong><%= @tool_health.failure_count %></strong></p>
+                <p>Denied Decisions: <strong><%= @tool_health.denied_recent %></strong></p>
+              </div>
+              <p class="subtitle tool-health-summary">
+                <%= @tool_health.summary %>
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
               <h3 class="card-title">🧵 Queue Control</h3>
             </div>
             <div class="card-body">
-              <p>
+              <p class="queue-status">
                 Status:
                 <span class={"badge #{if @queue_stats.paused, do: "badge-warning", else: "badge-success"}"}>
                   <%= if @queue_stats.paused, do: "Paused", else: "Running" %>
                 </span>
               </p>
-              <p>High: <strong><%= @queue_stats.high %></strong> | Normal: <strong><%= @queue_stats.normal %></strong> | Low: <strong><%= @queue_stats.low %></strong></p>
-              <p>Rejected: <strong><%= @queue_stats.rejected %></strong></p>
-              <div class="actions-bar" style="margin-top: 1rem;">
+              <div class="queue-breakdown">
+                <p>High: <strong><%= @queue_stats.high %></strong></p>
+                <p>Normal: <strong><%= @queue_stats.normal %></strong></p>
+                <p>Low: <strong><%= @queue_stats.low %></strong></p>
+                <p>Rejected: <strong><%= @queue_stats.rejected %></strong></p>
+              </div>
+              <div class="actions-bar queue-actions">
                 <button class="btn btn-secondary btn-sm" phx-click="pause_queue" disabled={@queue_stats.paused}>Pause</button>
                 <button class="btn btn-secondary btn-sm" phx-click="resume_queue" disabled={!@queue_stats.paused}>Resume</button>
                 <button class="btn btn-secondary btn-sm" phx-click="clear_queue">Clear</button>
@@ -307,7 +360,7 @@ defmodule SCRWeb.DashboardLive do
                 <strong><%= @placement_observability.last_best_score || "n/a" %></strong>
               </p>
               <%= if @placement_observability.history != [] do %>
-                <div style="margin-top: 0.5rem; max-height: 180px; overflow-y: auto;">
+                <div class="scroll-panel">
                   <%= for item <- @placement_observability.history do %>
                     <div class="agent-item">
                       <div class="agent-info">
@@ -395,6 +448,58 @@ defmodule SCRWeb.DashboardLive do
     SCR.Tools.AuditLog.recent(12)
   rescue
     _ -> []
+  end
+
+  defp get_tool_health(recent_tool_decisions) do
+    servers =
+      if Process.whereis(SCR.Tools.MCP.ServerManager) do
+        SCR.Tools.MCP.ServerManager.list_servers()
+      else
+        []
+      end
+
+    mcp_total = length(servers)
+    mcp_healthy = Enum.count(servers, &Map.get(&1, :healthy, false))
+    circuit_open = Enum.count(servers, &Map.get(&1, :circuit_open, false))
+    failure_count = Enum.reduce(servers, 0, fn s, acc -> acc + Map.get(s, :failures, 0) end)
+
+    denied_recent =
+      Enum.count(recent_tool_decisions, fn entry ->
+        decision = Map.get(entry, :decision)
+        decision in [:denied, :blocked, :error]
+      end)
+
+    summary =
+      cond do
+        mcp_total == 0 -> "No MCP servers configured"
+        circuit_open > 0 -> "Degraded: one or more MCP circuits are open"
+        mcp_healthy < mcp_total -> "Degraded: at least one MCP server is unhealthy"
+        denied_recent > 0 -> "Healthy with policy denials in recent decisions"
+        true -> "Healthy"
+      end
+
+    %{
+      mcp_total: mcp_total,
+      mcp_healthy: mcp_healthy,
+      circuit_open: circuit_open,
+      failure_count: failure_count,
+      denied_recent: denied_recent,
+      summary: summary
+    }
+  rescue
+    _ ->
+      %{
+        mcp_total: 0,
+        mcp_healthy: 0,
+        circuit_open: 0,
+        failure_count: 0,
+        denied_recent: 0,
+        summary: "Tool health unavailable"
+      }
+  end
+
+  defp toggle_live_tick(socket) do
+    assign(socket, :live_tick, !Map.get(socket.assigns, :live_tick, false))
   end
 
   defp get_placement_observability do
