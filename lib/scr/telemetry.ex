@@ -39,7 +39,12 @@ defmodule SCR.Telemetry do
       counter("scr.task_queue.dequeue.total",
         event_name: [:scr, :task_queue, :dequeue],
         measurement: :count,
-        tags: [:priority, :result, :task_type]
+        tags: [:priority, :result, :task_type, :task_class]
+      ),
+      counter("scr.task_queue.fairness.total",
+        event_name: [:scr, :task_queue, :fairness],
+        measurement: :count,
+        tags: [:priority, :task_class, :reason]
       ),
       last_value("scr.task_queue.size",
         event_name: [:scr, :task_queue, :stats],
@@ -136,6 +141,70 @@ defmodule SCR.Telemetry do
       last_value("scr.llm.tokens.completion.total",
         event_name: [:scr, :llm, :stats],
         measurement: :total_completion_tokens
+      ),
+      last_value("scr.llm.failover.circuit_open",
+        event_name: [:scr, :llm, :failover, :provider],
+        measurement: :circuit_open,
+        tags: [:provider]
+      ),
+      last_value("scr.llm.failover.failures",
+        event_name: [:scr, :llm, :failover, :provider],
+        measurement: :failures,
+        tags: [:provider]
+      ),
+      last_value("scr.llm.failover.successes",
+        event_name: [:scr, :llm, :failover, :provider],
+        measurement: :successes,
+        tags: [:provider]
+      ),
+      last_value("scr.llm.failover.retry_budget_remaining",
+        event_name: [:scr, :llm, :failover, :budget],
+        measurement: :remaining
+      ),
+      last_value("scr.distributed.backpressure.cluster_utilization",
+        event_name: [:scr, :distributed, :backpressure, :stats],
+        measurement: :cluster_utilization
+      ),
+      last_value("scr.distributed.backpressure.max_utilization",
+        event_name: [:scr, :distributed, :backpressure, :stats],
+        measurement: :max_utilization
+      ),
+      last_value("scr.distributed.backpressure.saturated_nodes",
+        event_name: [:scr, :distributed, :backpressure, :stats],
+        measurement: :saturated_nodes
+      ),
+      last_value("scr.distributed.backpressure.node_count",
+        event_name: [:scr, :distributed, :backpressure, :stats],
+        measurement: :node_count
+      ),
+      last_value("scr.distributed.backpressure.throttled",
+        event_name: [:scr, :distributed, :backpressure, :stats],
+        measurement: :throttled
+      ),
+      last_value("scr.distributed.placement.queue_growth_per_sec",
+        event_name: [:scr, :distributed, :placement, :stats],
+        measurement: :queue_growth_per_sec
+      ),
+      last_value("scr.distributed.placement.agent_growth_per_sec",
+        event_name: [:scr, :distributed, :placement, :stats],
+        measurement: :agent_growth_per_sec
+      ),
+      last_value("scr.distributed.placement.max_queue_growth_per_sec",
+        event_name: [:scr, :distributed, :placement, :stats],
+        measurement: :max_queue_growth_per_sec
+      ),
+      last_value("scr.distributed.placement.max_agent_growth_per_sec",
+        event_name: [:scr, :distributed, :placement, :stats],
+        measurement: :max_agent_growth_per_sec
+      ),
+      counter("scr.distributed.capacity_tuning.decision.total",
+        event_name: [:scr, :distributed, :capacity_tuning, :decision],
+        measurement: :count,
+        tags: [:decision, :reason]
+      ),
+      last_value("scr.distributed.capacity_tuning.estimated_latency.milliseconds",
+        event_name: [:scr, :distributed, :capacity_tuning, :decision],
+        measurement: :estimated_latency_ms
       )
     ]
   end
@@ -147,6 +216,8 @@ defmodule SCR.Telemetry do
     emit_mcp_stats()
     emit_health_stats()
     emit_llm_stats()
+    emit_llm_failover_stats()
+    emit_distributed_backpressure_stats()
   end
 
   defp emit_task_queue_stats do
@@ -216,6 +287,77 @@ defmodule SCR.Telemetry do
             total_calls: Map.get(stats, :total_calls, 0),
             total_prompt_tokens: Map.get(stats, :total_prompt_tokens, 0),
             total_completion_tokens: Map.get(stats, :total_completion_tokens, 0)
+          },
+          %{}
+        )
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp emit_llm_failover_stats do
+    case safe_call(fn -> SCR.LLM.Client.failover_state() end) do
+      {:ok, %{providers: providers, retry_budget: retry_budget}} ->
+        Enum.each(providers, fn provider ->
+          :telemetry.execute(
+            [:scr, :llm, :failover, :provider],
+            %{
+              circuit_open: if(Map.get(provider, :circuit_open, false), do: 1, else: 0),
+              failures: Map.get(provider, :failures, 0),
+              successes: Map.get(provider, :successes, 0)
+            },
+            %{provider: Map.get(provider, :provider, :unknown)}
+          )
+        end)
+
+        :telemetry.execute(
+          [:scr, :llm, :failover, :budget],
+          %{remaining: Map.get(retry_budget, :remaining, 0)},
+          %{}
+        )
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp emit_distributed_backpressure_stats do
+    case safe_call(fn -> SCR.Distributed.queue_pressure_report() end) do
+      {:ok, {:ok, [_ | _] = report}} ->
+        utilizations = Enum.map(report, &Map.get(&1, :utilization, 0.0))
+        node_count = length(utilizations)
+        saturated_nodes = Enum.count(report, &Map.get(&1, :saturated, false))
+
+        :telemetry.execute(
+          [:scr, :distributed, :backpressure, :stats],
+          %{
+            cluster_utilization: Enum.sum(utilizations) / node_count,
+            max_utilization: Enum.max(utilizations),
+            saturated_nodes: saturated_nodes,
+            node_count: node_count,
+            throttled: if(SCR.Distributed.cluster_backpressured?(), do: 1, else: 0)
+          },
+          %{}
+        )
+
+      _ ->
+        :ok
+    end
+
+    case safe_call(fn -> SCR.Distributed.placement_report() end) do
+      {:ok, {:ok, [_ | _] = report}} ->
+        queue_growth = Enum.map(report, &Map.get(&1, :queue_growth_per_sec, 0.0))
+        agent_growth = Enum.map(report, &Map.get(&1, :agent_growth_per_sec, 0.0))
+        node_count = length(report)
+
+        :telemetry.execute(
+          [:scr, :distributed, :placement, :stats],
+          %{
+            queue_growth_per_sec: Enum.sum(queue_growth) / node_count,
+            agent_growth_per_sec: Enum.sum(agent_growth) / node_count,
+            max_queue_growth_per_sec: Enum.max(queue_growth),
+            max_agent_growth_per_sec: Enum.max(agent_growth)
           },
           %{}
         )

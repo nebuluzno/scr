@@ -30,10 +30,11 @@ It provides:
 - Step-by-step tutorials: `TUTORIALS.md`
 - Documentation index: `DOCS_INDEX.md`
 - Release prep checklist: `RELEASE_CHECKLIST.md`
-- Latest release notes: `docs/release/RELEASE_NOTES_v0.4.0-alpha.md`
+- Latest release notes: `docs/release/RELEASE_NOTES_v0.5.0-alpha.md`
 - Competitive comparison: `docs/positioning/SCR_Competitive_Comparison.md`
 - Future roadmap TODO: `docs/roadmap/FUTURE_TODO.md`
 - Use-case walkthroughs: `docs/guides/SCR_UseCases.md`
+- Distributed resilience runbook: `docs/guides/DISTRIBUTED_RESILIENCE_RUNBOOK.md`
 - LLM architecture details: `docs/architecture/SCR_LLM_Documentation.txt`
 - Improvement backlog: `SCR_Improvements.md`
 - Docs/UI quality suggestions (visual regression + docs CI): `SCR_Improvements.md`
@@ -105,6 +106,11 @@ Dashboard now includes queue controls:
 - Clear queued tasks
 - Drain queue (marks drained tasks in shared context)
 
+Queue scheduler notes:
+- Dequeue path uses weighted fairness across workload classes within each priority lane.
+- Fairness telemetry: `[:scr, :task_queue, :fairness]`.
+- Capacity tuning decisions also track estimated latency SLO and emit reason-labeled telemetry.
+
 ### Web UI task example
 1. Open `/tasks/new`
 2. Enter: `Research AI agent runtimes and produce a concise comparison`
@@ -175,17 +181,46 @@ Failover is enabled by default and attempts providers in order:
 config :scr, :llm,
   provider: :ollama,
   failover_enabled: true,
+  failover_mode: :fail_closed, # :fail_closed | :fail_open
   failover_providers: [:ollama, :openai, :anthropic],
   failover_errors: [:connection_error, :timeout, :http_error, :api_error],
-  failover_cooldown_ms: 30_000
+  failover_cooldown_ms: 30_000,
+  failover_fail_open_provider: :mock,
+  failover_retry_budget: [max_retries: 50, window_ms: 60_000]
+```
+
+Inspect runtime failover state:
+```elixir
+SCR.LLM.Client.failover_state()
 ```
 
 Production env overrides:
 ```bash
 export SCR_LLM_FAILOVER_ENABLED=true
+export SCR_LLM_FAILOVER_MODE=fail_closed
 export SCR_LLM_FAILOVER_PROVIDERS=ollama,openai,anthropic
 export SCR_LLM_FAILOVER_COOLDOWN_MS=30000
+export SCR_LLM_FAILOVER_FAIL_OPEN_PROVIDER=mock
+export SCR_LLM_FAILOVER_RETRY_BUDGET_MAX=50
+export SCR_LLM_FAILOVER_RETRY_BUDGET_WINDOW_MS=60000
 ```
+
+## Memory Migration and Verify
+
+Migrate memory records between backends:
+```bash
+mix scr.memory.migrate --from dets --to sqlite --from-path tmp/memory --to-path tmp/memory/scr_memory.sqlite3
+```
+
+Verify backend consistency:
+```bash
+mix scr.memory.verify --backend dets --path tmp/memory
+mix scr.memory.verify --backend sqlite --path tmp/memory/scr_memory.sqlite3
+```
+
+Notes:
+- Supported backends: `ets`, `dets`, `sqlite`, `postgres`.
+- `scr.memory.migrate` clears target backend by default; pass `--merge` to upsert without clearing.
 
 ## Tool System (Hybrid)
 SCR uses a unified tool registry:
@@ -193,6 +228,25 @@ SCR uses a unified tool registry:
 - MCP-backed tools: managed via MCP server manager (local stdio)
 
 Default safety mode is `:strict`.
+
+Policy governance profiles:
+- `:strict` (default)
+- `:balanced`
+- `:research`
+
+Switch profile at runtime:
+```elixir
+SCR.Tools.Policy.current_profile()
+SCR.Tools.Policy.set_profile(:balanced)
+```
+
+Audit trail:
+- Recent allow/deny tool decisions are visible on the dashboard.
+- Configure audit backend (`:ets` or `:dets`) via:
+```bash
+export SCR_TOOLS_AUDIT_BACKEND=dets
+export SCR_TOOLS_AUDIT_PATH=tmp/tool_audit_log.dets
+```
 
 ### Example tool call from IEx
 ```bash
@@ -228,6 +282,9 @@ Core distributed API:
 - `SCR.Distributed.start_agent/5` (weighted placement)
 - `SCR.Distributed.pick_start_node/1`
 - `SCR.Distributed.placement_report/2`
+- `SCR.Distributed.queue_pressure_report/2`
+- `SCR.Distributed.cluster_backpressured?/2`
+- `SCR.Distributed.pick_start_node_for_class/2`
 - `SCR.Distributed.handoff_agent/3`
 - `SCR.Distributed.check_agent_health_on/3`
 - `SCR.Distributed.check_cluster_health/1`
@@ -246,6 +303,62 @@ config :scr, :distributed,
   flap_window_ms: 60_000,
   flap_threshold: 3,
   quarantine_ms: 120_000,
+  placement_weights: [
+    queue_depth_weight: 1.0,
+    queue_utilization_weight: 30.0,
+    queue_growth_weight: 10.0,
+    agent_count_weight: 1.0,
+    agent_growth_weight: 5.0,
+    unhealthy_weight: 15.0,
+    down_event_weight: 5.0,
+    saturated_penalty: 40.0,
+    constraint_penalty: 500.0,
+    local_bias: 2.0
+  ],
+  placement_constraints: [
+    max_agents_per_node: nil,
+    max_queue_per_node: nil
+  ],
+  backpressure: [
+    enabled: true,
+    cluster_saturation_threshold: 0.85,
+    max_node_utilization: 0.98
+  ],
+  routing: [
+    enabled: false,
+    at_least_once: true,
+    dedupe_enabled: true,
+    dedupe_ttl_ms: 300_000,
+    max_attempts: 3,
+    retry_delay_ms: 100,
+    rpc_timeout_ms: 5_000
+  ],
+  placement_observability: [
+    enabled: true,
+    interval_ms: 5_000,
+    history_size: 120
+  ],
+  workload_routing: [
+    enabled: false,
+    strict: false,
+    classes: %{
+      "cpu" => ["cpu"],
+      "io" => ["io"],
+      "external_api" => ["external_api"]
+    },
+    local_capabilities: [],
+    node_capabilities: %{}
+  ],
+  capacity_tuning: [
+    enabled: false,
+    interval_ms: 10_000,
+    min_queue_size: 50,
+    max_queue_size: 500,
+    up_step: 25,
+    down_step: 10,
+    high_rejection_ratio: 0.08,
+    low_rejection_ratio: 0.01
+  ],
   rpc_timeout_ms: 5_000
 
 config :libcluster,
@@ -261,11 +374,15 @@ Quick check from IEx:
 ```elixir
 SCR.Distributed.status()
 SCR.Distributed.placement_report()
+SCR.Distributed.queue_pressure_report()
+SCR.Distributed.cluster_backpressured?()
+SCR.Distributed.pick_start_node_for_class("cpu")
 SCR.Distributed.list_cluster_agents()
 SCR.Distributed.pick_start_node()
 SCR.Distributed.start_agent("worker_auto_1", :worker, SCR.Agents.WorkerAgent, %{agent_id: "worker_auto_1"})
 SCR.Distributed.check_cluster_health()
 SCR.Distributed.handoff_agent("worker_1", :"scr2@127.0.0.1")
+SCR.Distributed.RecoveryDrills.run(:node_flap, cycles: 2, dry_run: true)
 ```
 
 Telemetry stream API:
@@ -278,6 +395,10 @@ Security note:
 - Use a strong shared Erlang cookie for all cluster nodes.
 - Avoid exposing Erlang distribution ports publicly without network controls.
 - Quarantined nodes are automatically excluded from auto-placement and handoff targets.
+- Optional routing semantics support at-least-once remote task delivery with dedupe keys.
+- Dashboard includes placement observability history and quarantine snapshots.
+- Optional workload class routing supports capability-aware placement (`cpu`, `io`, `external_api`).
+- Optional capacity tuning can adapt queue limits from runtime rejection/pressure signals.
 
 ## Development Commands
 ```bash
@@ -315,8 +436,17 @@ config :scr, :agent_context,
   shards: 8
 
 config :scr, :memory_storage,
-  backend: :ets, # :ets | :dets
-  path: "tmp/memory"
+  backend: :ets, # :ets | :dets | :sqlite | :postgres
+  path: "tmp/memory", # directory for :dets, sqlite file path for :sqlite
+  postgres: [
+    url: System.get_env("SCR_MEMORY_POSTGRES_URL"),
+    hostname: System.get_env("SCR_MEMORY_POSTGRES_HOST"),
+    port: 5432,
+    username: System.get_env("SCR_MEMORY_POSTGRES_USER"),
+    password: System.get_env("SCR_MEMORY_POSTGRES_PASSWORD"),
+    database: System.get_env("SCR_MEMORY_POSTGRES_DB"),
+    ssl: false
+  ]
 
 config :scr, :tools,
   sandbox: [
@@ -356,10 +486,59 @@ config :scr, :distributed,
   quarantine_ms: 120_000,
   placement_weights: [
     queue_depth_weight: 1.0,
+    queue_utilization_weight: 30.0,
+    queue_growth_weight: 10.0,
     agent_count_weight: 1.0,
+    agent_growth_weight: 5.0,
     unhealthy_weight: 15.0,
     down_event_weight: 5.0,
+    saturated_penalty: 40.0,
+    constraint_penalty: 500.0,
     local_bias: 2.0
+  ],
+  placement_constraints: [
+    max_agents_per_node: nil,
+    max_queue_per_node: nil
+  ],
+  backpressure: [
+    enabled: true,
+    cluster_saturation_threshold: 0.85,
+    max_node_utilization: 0.98
+  ],
+  routing: [
+    enabled: false,
+    at_least_once: true,
+    dedupe_enabled: true,
+    dedupe_ttl_ms: 300_000,
+    max_attempts: 3,
+    retry_delay_ms: 100,
+    rpc_timeout_ms: 5_000
+  ],
+  placement_observability: [
+    enabled: true,
+    interval_ms: 5_000,
+    history_size: 120
+  ],
+  workload_routing: [
+    enabled: false,
+    strict: false,
+    classes: %{
+      "cpu" => ["cpu"],
+      "io" => ["io"],
+      "external_api" => ["external_api"]
+    },
+    local_capabilities: [],
+    node_capabilities: %{}
+  ],
+  capacity_tuning: [
+    enabled: false,
+    interval_ms: 10_000,
+    min_queue_size: 50,
+    max_queue_size: 500,
+    up_step: 25,
+    down_step: 10,
+    high_rejection_ratio: 0.08,
+    low_rejection_ratio: 0.01
   ],
   rpc_timeout_ms: 5_000
 
@@ -386,14 +565,57 @@ export SCR_DISTRIBUTED_FLAP_WINDOW_MS=60000
 export SCR_DISTRIBUTED_FLAP_THRESHOLD=3
 export SCR_DISTRIBUTED_QUARANTINE_MS=120000
 export SCR_DISTRIBUTED_QUEUE_WEIGHT=1.0
+export SCR_DISTRIBUTED_UTILIZATION_WEIGHT=30.0
+export SCR_DISTRIBUTED_QUEUE_GROWTH_WEIGHT=10.0
 export SCR_DISTRIBUTED_AGENT_WEIGHT=1.0
+export SCR_DISTRIBUTED_AGENT_GROWTH_WEIGHT=5.0
 export SCR_DISTRIBUTED_UNHEALTHY_WEIGHT=15.0
 export SCR_DISTRIBUTED_DOWN_WEIGHT=5.0
+export SCR_DISTRIBUTED_SATURATED_PENALTY=40.0
+export SCR_DISTRIBUTED_CONSTRAINT_PENALTY=500.0
 export SCR_DISTRIBUTED_LOCAL_BIAS=2.0
+export SCR_DISTRIBUTED_MAX_AGENTS_PER_NODE=
+export SCR_DISTRIBUTED_MAX_QUEUE_PER_NODE=
+export SCR_DISTRIBUTED_BACKPRESSURE_ENABLED=true
+export SCR_DISTRIBUTED_CLUSTER_SAT_THRESHOLD=0.85
+export SCR_DISTRIBUTED_MAX_NODE_UTILIZATION=0.98
+export SCR_DISTRIBUTED_ROUTING_ENABLED=false
+export SCR_DISTRIBUTED_AT_LEAST_ONCE=true
+export SCR_DISTRIBUTED_DEDUPE_ENABLED=true
+export SCR_DISTRIBUTED_DEDUPE_TTL_MS=300000
+export SCR_DISTRIBUTED_ROUTING_MAX_ATTEMPTS=3
+export SCR_DISTRIBUTED_ROUTING_RETRY_DELAY_MS=100
+export SCR_DISTRIBUTED_ROUTING_RPC_TIMEOUT_MS=5000
+export SCR_DISTRIBUTED_PLACEMENT_OBS_ENABLED=true
+export SCR_DISTRIBUTED_PLACEMENT_OBS_INTERVAL_MS=5000
+export SCR_DISTRIBUTED_PLACEMENT_OBS_HISTORY_SIZE=120
+export SCR_DISTRIBUTED_WORKLOAD_ROUTING_ENABLED=false
+export SCR_DISTRIBUTED_WORKLOAD_ROUTING_STRICT=false
+export SCR_DISTRIBUTED_WORKLOAD_CPU_REQ=cpu
+export SCR_DISTRIBUTED_WORKLOAD_IO_REQ=io
+export SCR_DISTRIBUTED_WORKLOAD_EXTERNAL_API_REQ=external_api
+export SCR_DISTRIBUTED_LOCAL_CAPABILITIES=
+export SCR_DISTRIBUTED_CAPACITY_TUNING_ENABLED=false
+export SCR_DISTRIBUTED_CAPACITY_TUNING_INTERVAL_MS=10000
+export SCR_DISTRIBUTED_CAPACITY_TUNING_MIN_QUEUE=50
+export SCR_DISTRIBUTED_CAPACITY_TUNING_MAX_QUEUE=500
+export SCR_DISTRIBUTED_CAPACITY_TUNING_UP_STEP=25
+export SCR_DISTRIBUTED_CAPACITY_TUNING_DOWN_STEP=10
+export SCR_DISTRIBUTED_CAPACITY_TUNING_HIGH_REJECT=0.08
+export SCR_DISTRIBUTED_CAPACITY_TUNING_LOW_REJECT=0.01
 export SCR_DISTRIBUTED_RPC_TIMEOUT_MS=5000
 export RELEASE_COOKIE="replace-with-strong-cookie"
 export SCR_TASK_QUEUE_BACKEND=memory
 export SCR_TASK_QUEUE_DETS_PATH=tmp/task_queue.dets
+export SCR_MEMORY_BACKEND=ets
+export SCR_MEMORY_PATH=tmp/memory
+export SCR_MEMORY_POSTGRES_URL=
+export SCR_MEMORY_POSTGRES_HOST=
+export SCR_MEMORY_POSTGRES_PORT=5432
+export SCR_MEMORY_POSTGRES_USER=
+export SCR_MEMORY_POSTGRES_PASSWORD=
+export SCR_MEMORY_POSTGRES_DB=
+export SCR_MEMORY_POSTGRES_SSL=false
 ```
 
 Quick IEx checks:
@@ -534,4 +756,4 @@ mix scr.mcp.smoke --server filesystem --tool list_directory --args-json '{"path"
 ```
 
 ## Current Version
-`v0.4.0-alpha`
+`v0.5.0-alpha`

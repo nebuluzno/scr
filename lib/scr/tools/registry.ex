@@ -9,6 +9,7 @@ defmodule SCR.Tools.Registry do
   alias SCR.Tools.ExecutionContext
   alias SCR.Tools.Policy
   alias SCR.Tools.RateLimiter
+  alias SCR.Tools.AuditLog
   alias SCR.Tools.ToolDescriptor
   alias SCR.Trace
 
@@ -183,9 +184,10 @@ defmodule SCR.Tools.Registry do
 
     with {:ok, descriptor} <- fetch_descriptor(tool_name, ctx, state),
          :ok <- Policy.authorize(descriptor, normalized_params, ctx),
+         :ok <- audit_policy_decision(:allowed, :authorized, descriptor, ctx),
          :ok <- enforce_rate_limit(descriptor.name),
          {:ok, response} <- execute_with_descriptor(descriptor, normalized_params, ctx),
-         :ok <- Policy.validate_result_payload(response, ctx) do
+         :ok <- Policy.validate_result_payload(response, ctx, descriptor) do
       Logger.info("tool.execute.ok name=#{tool_name}")
       emit_tool_execute_event(tool_name, descriptor.source, :ok, started_at, ctx)
       {:reply, {:ok, response}, state}
@@ -196,14 +198,38 @@ defmodule SCR.Tools.Registry do
         if fallback_to_native_enabled?() do
           case fallback_native(tool_name, normalized_params, ctx, state) do
             {:ok, response} ->
+              _ =
+                audit_policy_decision(
+                  :allowed,
+                  :fallback_native,
+                  descriptor_or_unknown(tool_name, ctx, state),
+                  ctx
+                )
+
               emit_tool_execute_event(tool_name, :native, :ok, started_at, ctx)
               {:reply, {:ok, response}, state}
 
             {:error, reason} ->
+              _ =
+                audit_policy_decision(
+                  :denied,
+                  reason,
+                  descriptor_or_unknown(tool_name, ctx, state),
+                  ctx
+                )
+
               emit_tool_execute_event(tool_name, :mcp, reason, started_at, ctx)
               {:reply, {:error, reason}, state}
           end
         else
+          _ =
+            audit_policy_decision(
+              :denied,
+              :mcp_unavailable,
+              descriptor_or_unknown(tool_name, ctx, state),
+              ctx
+            )
+
           emit_tool_execute_event(tool_name, :mcp, :mcp_unavailable, started_at, ctx)
           {:reply, {:error, :mcp_unavailable}, state}
         end
@@ -218,6 +244,14 @@ defmodule SCR.Tools.Registry do
           started_at,
           ctx
         )
+
+        _ =
+          audit_policy_decision(
+            :denied,
+            reason,
+            descriptor_or_unknown(tool_name, ctx, state),
+            ctx
+          )
 
         {:reply, {:error, reason}, state}
     end
@@ -306,7 +340,8 @@ defmodule SCR.Tools.Registry do
         task_id: ctx.task_id,
         parent_task_id: ctx.parent_task_id,
         subtask_id: ctx.subtask_id,
-        agent_id: ctx.agent_id
+        agent_id: ctx.agent_id,
+        policy_profile: ctx.policy_profile || Policy.current_profile()
       }
     }
   end
@@ -480,4 +515,36 @@ defmodule SCR.Tools.Registry do
   defp telemetry_result({:payload_too_large, _}), do: :payload_too_large
   defp telemetry_result({:invalid_params, _}), do: :invalid_params
   defp telemetry_result(_), do: :error
+
+  defp audit_policy_decision(decision, reason, descriptor, ctx) do
+    if Process.whereis(AuditLog) do
+      AuditLog.record(%{
+        decision: decision,
+        reason: reason,
+        tool: descriptor.name,
+        source: descriptor.source,
+        server: descriptor.server,
+        mode: ctx.mode,
+        policy_profile: ctx.policy_profile || Policy.current_profile(),
+        trace_id: ctx.trace_id,
+        agent_id: ctx.agent_id,
+        task_id: ctx.task_id,
+        parent_task_id: ctx.parent_task_id,
+        subtask_id: ctx.subtask_id
+      })
+    end
+
+    :ok
+  end
+
+  defp descriptor_or_unknown(tool_name, ctx, state) do
+    resolve_descriptor(tool_name, ctx, state) ||
+      %ToolDescriptor{
+        name: tool_name,
+        source: resolve_source_hint(tool_name, ctx, state),
+        description: "unknown",
+        schema: %{"type" => "object", "properties" => %{}},
+        server: nil
+      }
+  end
 end

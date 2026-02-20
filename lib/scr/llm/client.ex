@@ -52,6 +52,10 @@ defmodule SCR.LLM.Client do
   @type result :: {:ok, map()} | {:error, term()}
   @default_failover_cooldown_ms 30_000
   @default_failover_errors [:connection_error, :timeout, :http_error, :api_error]
+  @default_failover_mode :fail_closed
+  @default_retry_budget [max_retries: 50, window_ms: 60_000]
+  @provider_state_key :scr_llm_failover_state
+  @retry_budget_state_key :scr_llm_failover_retry_budget
 
   @doc """
   Returns the current provider configuration.
@@ -233,7 +237,43 @@ defmodule SCR.LLM.Client do
       if is_atom(provider), do: clear_provider_cooldown(provider)
     end)
 
+    :persistent_term.put(@provider_state_key, %{})
+    :persistent_term.put(@retry_budget_state_key, %{window_started_ms: 0, spent: 0})
     :ok
+  end
+
+  @doc """
+  Returns current failover policy/circuit/budget state.
+  """
+  def failover_state do
+    cfg = llm_config()
+    now_ms = System.system_time(:millisecond)
+    mode = failover_mode(cfg)
+    providers = candidate_providers(cfg, nil)
+    provider_state = :persistent_term.get(@provider_state_key, %{})
+    retry_budget = current_retry_budget(cfg)
+
+    provider_entries =
+      Enum.map(providers, fn provider ->
+        state = Map.get(provider_state, provider, %{})
+        circuit_open_until = Map.get(state, :circuit_open_until, 0)
+
+        %{
+          provider: provider,
+          failures: Map.get(state, :failures, 0),
+          successes: Map.get(state, :successes, 0),
+          last_error: Map.get(state, :last_error),
+          circuit_open_until: circuit_open_until,
+          circuit_open: circuit_open_until > now_ms
+        }
+      end)
+
+    %{
+      enabled: failover_enabled?(cfg),
+      mode: mode,
+      providers: provider_entries,
+      retry_budget: retry_budget
+    }
   end
 
   @doc """
@@ -533,8 +573,19 @@ defmodule SCR.LLM.Client do
     run_with_providers(operation, args, providers, cooldown_ms, allowed_errors, cfg, nil)
   end
 
-  defp run_with_providers(_operation, _args, [], _cooldown_ms, _allowed_errors, _cfg, last_error) do
-    last_error || {:error, %{type: :no_provider_available}}
+  defp run_with_providers(operation, args, [], _cooldown_ms, _allowed_errors, cfg, last_error) do
+    case failover_mode(cfg) do
+      :fail_open ->
+        fail_open_response(
+          operation,
+          args,
+          cfg,
+          last_error || {:error, %{type: :no_provider_available}}
+        )
+
+      _ ->
+        last_error || {:error, %{type: :no_provider_available}}
+    end
   end
 
   defp run_with_providers(
@@ -570,15 +621,34 @@ defmodule SCR.LLM.Client do
 
       case result do
         {:ok, _} = ok ->
-          clear_provider_cooldown(provider)
+          mark_provider_success(provider)
           ok
 
         {:error, reason} = error ->
           if failover_enabled?(cfg) and failover_error?(reason, allowed_errors) and rest != [] do
-            mark_provider_failed(provider, cooldown_ms)
-            run_with_providers(operation, args, rest, cooldown_ms, allowed_errors, cfg, error)
+            mark_provider_failed(provider, cooldown_ms, reason)
+
+            if consume_retry_budget(cfg) do
+              run_with_providers(operation, args, rest, cooldown_ms, allowed_errors, cfg, error)
+            else
+              budget_error =
+                {:error,
+                 %{
+                   type: :failover_retry_budget_exhausted,
+                   message: "Failover retry budget exhausted",
+                   provider: provider
+                 }}
+
+              case failover_mode(cfg) do
+                :fail_open -> fail_open_response(operation, args, cfg, budget_error)
+                _ -> budget_error
+              end
+            end
           else
-            error
+            case failover_mode(cfg) do
+              :fail_open -> fail_open_response(operation, args, cfg, error)
+              _ -> error
+            end
           end
       end
     end
@@ -598,24 +668,153 @@ defmodule SCR.LLM.Client do
   end
 
   defp failover_enabled?(cfg), do: Keyword.get(cfg, :failover_enabled, false)
+  defp failover_mode(cfg), do: Keyword.get(cfg, :failover_mode, @default_failover_mode)
 
   defp failover_error?(%{type: type}, allowed), do: type in allowed
   defp failover_error?(type, allowed) when is_atom(type), do: type in allowed
   defp failover_error?(_, _), do: false
 
   defp provider_cooldown_active?(provider) do
-    until_ms = :persistent_term.get({:scr_llm_failover_until, provider}, 0)
+    until_ms =
+      :persistent_term.get(@provider_state_key, %{})
+      |> Map.get(provider, %{})
+      |> Map.get(:circuit_open_until, 0)
+
     until_ms > System.system_time(:millisecond)
   end
 
-  defp mark_provider_failed(provider, cooldown_ms) do
-    :persistent_term.put(
-      {:scr_llm_failover_until, provider},
-      System.system_time(:millisecond) + cooldown_ms
-    )
+  defp mark_provider_failed(provider, cooldown_ms, reason) do
+    now_ms = System.system_time(:millisecond)
+    state = :persistent_term.get(@provider_state_key, %{})
+    entry = Map.get(state, provider, %{})
+
+    next_entry =
+      entry
+      |> Map.put(:circuit_open_until, now_ms + cooldown_ms)
+      |> Map.put(:last_error, reason)
+      |> Map.update(:failures, 1, &(&1 + 1))
+
+    :persistent_term.put(@provider_state_key, Map.put(state, provider, next_entry))
   end
 
   defp clear_provider_cooldown(provider) do
-    :persistent_term.put({:scr_llm_failover_until, provider}, 0)
+    state = :persistent_term.get(@provider_state_key, %{})
+    entry = Map.get(state, provider, %{})
+    next = Map.put(entry, :circuit_open_until, 0)
+    :persistent_term.put(@provider_state_key, Map.put(state, provider, next))
+  end
+
+  defp mark_provider_success(provider) do
+    state = :persistent_term.get(@provider_state_key, %{})
+    entry = Map.get(state, provider, %{})
+
+    next_entry =
+      entry
+      |> Map.put(:circuit_open_until, 0)
+      |> Map.update(:successes, 1, &(&1 + 1))
+
+    :persistent_term.put(@provider_state_key, Map.put(state, provider, next_entry))
+  end
+
+  defp current_retry_budget(cfg) do
+    budget_cfg = Keyword.get(cfg, :failover_retry_budget, @default_retry_budget)
+    now_ms = System.system_time(:millisecond)
+    max_retries = Keyword.get(budget_cfg, :max_retries, 50)
+    window_ms = Keyword.get(budget_cfg, :window_ms, 60_000)
+    state = :persistent_term.get(@retry_budget_state_key, %{window_started_ms: 0, spent: 0})
+    elapsed = now_ms - Map.get(state, :window_started_ms, 0)
+    stale_window = Map.get(state, :window_started_ms, 0) == 0 or elapsed > window_ms
+    effective_spent = if stale_window, do: 0, else: Map.get(state, :spent, 0)
+
+    %{
+      max_retries: max_retries,
+      window_ms: window_ms,
+      spent: effective_spent,
+      remaining: max(max_retries - effective_spent, 0)
+    }
+  end
+
+  defp consume_retry_budget(cfg) do
+    budget_cfg = Keyword.get(cfg, :failover_retry_budget, @default_retry_budget)
+    now_ms = System.system_time(:millisecond)
+    max_retries = Keyword.get(budget_cfg, :max_retries, 50)
+    window_ms = Keyword.get(budget_cfg, :window_ms, 60_000)
+    state = :persistent_term.get(@retry_budget_state_key, %{window_started_ms: 0, spent: 0})
+
+    next_state =
+      if Map.get(state, :window_started_ms, 0) == 0 or
+           now_ms - state.window_started_ms > window_ms do
+        %{window_started_ms: now_ms, spent: 0}
+      else
+        state
+      end
+
+    if max_retries <= 0 do
+      true
+    else
+      spent = Map.get(next_state, :spent, 0)
+
+      if spent < max_retries do
+        :persistent_term.put(@retry_budget_state_key, %{next_state | spent: spent + 1})
+        true
+      else
+        false
+      end
+    end
+  end
+
+  defp fail_open_response(operation, args, cfg, original_error) do
+    fallback_provider = Keyword.get(cfg, :failover_fail_open_provider, :mock)
+
+    fallback_result =
+      if is_atom(fallback_provider) do
+        adapter = adapter(fallback_provider, cfg)
+
+        case apply(adapter, operation, args) do
+          {:ok, response} when is_map(response) ->
+            {:ok,
+             response
+             |> Map.put(:provider, fallback_provider)
+             |> Map.put(:degraded, true)
+             |> Map.put(:fail_open, true)}
+
+          _ ->
+            synthetic_fail_open_response(operation, original_error)
+        end
+      else
+        synthetic_fail_open_response(operation, original_error)
+      end
+
+    fallback_result
+  rescue
+    _ -> synthetic_fail_open_response(operation, original_error)
+  end
+
+  defp synthetic_fail_open_response(:embed, original_error) do
+    {:ok,
+     %{
+       embedding: [],
+       provider: :fail_open,
+       degraded: true,
+       fail_open: true,
+       original_error: inspect(original_error)
+     }}
+  end
+
+  defp synthetic_fail_open_response(:ping, _original_error) do
+    {:ok, %{status: "degraded", provider: :fail_open, degraded: true, fail_open: true}}
+  end
+
+  defp synthetic_fail_open_response(:list_models, _original_error), do: {:ok, []}
+
+  defp synthetic_fail_open_response(_operation, original_error) do
+    {:ok,
+     %{
+       content: "LLM unavailable; fail-open fallback response.",
+       provider: :fail_open,
+       degraded: true,
+       fail_open: true,
+       original_error: inspect(original_error)
+     }}
   end
 end

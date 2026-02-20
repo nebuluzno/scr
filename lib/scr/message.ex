@@ -11,27 +11,33 @@ defmodule SCR.Message do
   @type agent_id :: String.t()
   @type payload :: map()
 
-  defstruct [:type, :from, :to, :payload, :timestamp, :message_id]
+  defstruct [:type, :from, :to, :payload, :timestamp, :message_id, :dedupe_key]
 
   @doc """
   Create a new message with a unique ID and current timestamp.
   """
-  def new(type, from, to, payload \\ %{}) do
+  def new(type, from, to, payload \\ %{}, opts \\ []) do
     %__MODULE__{
       type: type,
       from: from,
       to: to,
       payload: payload,
       timestamp: DateTime.utc_now(),
-      message_id: UUID.uuid4()
+      message_id: UUID.uuid4(),
+      dedupe_key: Keyword.get(opts, :dedupe_key)
     }
   end
 
   @doc """
   Create a task message.
   """
-  def task(from, to, task_data) do
-    new(:task, from, to, %{task: task_data})
+  def task(from, to, task_data, opts \\ []) do
+    dedupe_key =
+      Keyword.get(opts, :dedupe_key) ||
+        Map.get(task_data, :dedupe_key) ||
+        Map.get(task_data, :task_id)
+
+    new(:task, from, to, %{task: task_data}, dedupe_key: dedupe_key)
   end
 
   @doc """

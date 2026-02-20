@@ -77,23 +77,37 @@ defmodule SCR.Agents.PlannerAgent do
     priority = TaskQueue.normalize_priority(Map.get(task_data, :priority, :normal))
     queue_server = task_queue_server()
 
-    case TaskQueue.enqueue(task_data, priority, queue_server) do
-      {:ok, _} ->
-        _ =
-          AgentContext.upsert(to_string(task_data.task_id), %{
-            description: task_data.description,
-            priority: priority,
-            status: :queued,
-            trace_id: task_data.trace_id
-          })
+    if cluster_backpressured?() do
+      Logger.warning("planner.task.rejected cluster_backpressured task_id=#{task_data.task_id}")
 
-        Logger.info("planner.task.enqueued task_id=#{task_data.task_id} priority=#{priority}")
-        {:noreply, maybe_start_next_task(internal_state, state.agent_id)}
+      _ =
+        AgentContext.upsert(to_string(task_data.task_id), %{
+          description: task_data.description,
+          priority: priority,
+          status: :rejected_backpressure,
+          trace_id: task_data.trace_id
+        })
 
-      {:error, :queue_full} ->
-        Logger.warning("planner.task.rejected queue_full task_id=#{task_data.task_id}")
-        _ = AgentContext.set_status(to_string(task_data.task_id), :rejected_queue_full)
-        {:noreply, internal_state}
+      {:noreply, internal_state}
+    else
+      case TaskQueue.enqueue(task_data, priority, queue_server) do
+        {:ok, _} ->
+          _ =
+            AgentContext.upsert(to_string(task_data.task_id), %{
+              description: task_data.description,
+              priority: priority,
+              status: :queued,
+              trace_id: task_data.trace_id
+            })
+
+          Logger.info("planner.task.enqueued task_id=#{task_data.task_id} priority=#{priority}")
+          {:noreply, maybe_start_next_task(internal_state, state.agent_id)}
+
+        {:error, :queue_full} ->
+          Logger.warning("planner.task.rejected queue_full task_id=#{task_data.task_id}")
+          _ = AgentContext.set_status(to_string(task_data.task_id), :rejected_queue_full)
+          {:noreply, internal_state}
+      end
     end
   end
 
@@ -402,41 +416,52 @@ defmodule SCR.Agents.PlannerAgent do
     # Sort subtasks by priority
     sorted_subtasks = Enum.sort_by(state.subtasks, & &1.priority)
 
-    # Spawn appropriate agents and assign tasks
-    Enum.each(sorted_subtasks, fn subtask ->
-      agent_type = Map.get(subtask, :agent_type, :worker)
-      agent_id = Map.get(subtask, :agent_id, "#{agent_type}_#{:rand.uniform(100)}")
-      agent_module = Map.get(@agent_modules, agent_type, WorkerAgent)
+    started_workers =
+      Enum.reduce(sorted_subtasks, [], fn subtask, acc ->
+        agent_type = Map.get(subtask, :agent_type, :worker)
+        agent_id = Map.get(subtask, :agent_id, "#{agent_type}_#{:rand.uniform(100)}")
+        agent_module = Map.get(@agent_modules, agent_type, WorkerAgent)
 
-      # Start agent
-      {:ok, _pid} =
-        SCR.Supervisor.start_agent(
-          agent_id,
-          agent_type,
-          agent_module,
-          %{agent_id: agent_id}
-        )
+        case SCR.Supervisor.start_agent(
+               agent_id,
+               agent_type,
+               agent_module,
+               %{agent_id: agent_id}
+             ) do
+          {:ok, _pid} ->
+            # Give agent time to start.
+            Process.sleep(100)
 
-      # Give agent time to start
-      Process.sleep(100)
+            task_msg =
+              Message.task(state.agent_id, agent_id, %{
+                task_id: subtask.task_id,
+                parent_task_id: get_in(state, [:current_task, :task_id]),
+                subtask_id: subtask.task_id,
+                trace_id: get_in(state, [:current_task, :trace_id]),
+                type: agent_type,
+                description: subtask.description
+              })
 
-      # Send task to agent
-      task_msg =
-        Message.task(state.agent_id, agent_id, %{
-          task_id: subtask.task_id,
-          parent_task_id: get_in(state, [:current_task, :task_id]),
-          subtask_id: subtask.task_id,
-          trace_id: get_in(state, [:current_task, :trace_id]),
-          type: agent_type,
-          description: subtask.description
-        })
+            SCR.Supervisor.send_to_agent(agent_id, task_msg)
+            Logger.info("planner.subtask.assigned agent_type=#{agent_type} agent_id=#{agent_id}")
+            [agent_id | acc]
 
-      SCR.Supervisor.send_to_agent(agent_id, task_msg)
+          {:error, reason} ->
+            Logger.warning(
+              "planner.subtask.start_failed agent_type=#{agent_type} agent_id=#{agent_id} reason=#{inspect(reason)}"
+            )
 
-      Logger.info("planner.subtask.assigned agent_type=#{agent_type} agent_id=#{agent_id}")
-    end)
+            acc
+        end
+      end)
 
-    %{state | worker_pool: Enum.map(sorted_subtasks, & &1.agent_id)}
+    %{state | worker_pool: Enum.reverse(started_workers)}
+  end
+
+  defp cluster_backpressured? do
+    SCR.Distributed.enabled?() and SCR.Distributed.cluster_backpressured?()
+  rescue
+    _ -> false
   end
 
   defp store_in_memory(type, data) do
@@ -450,5 +475,3 @@ defmodule SCR.Agents.PlannerAgent do
     SCR.Supervisor.send_to_agent("memory_1", msg)
   end
 end
-
-require Logger

@@ -1,39 +1,48 @@
 # SCR Future TODO
 Doc Owner: SCR Maintainers
 
-This list is intentionally forward-looking and does **not** duplicate already-delivered items.
+Current planning target: **v0.6.0-alpha**
 
-## High Priority
+The v0.5.0-alpha roadmap cycle is complete. This file now tracks next-cycle candidates.
 
-1. Cross-node backpressure propagation
-- Publish per-node queue pressure into distributed scheduler decisions.
-- Throttle new subtasks when cluster saturation exceeds threshold.
+## Prioritized Backlog (v0.6.0-alpha)
 
-2. Placement strategy v3
-- Extend weighted placement with rolling latency and throughput trends from telemetry history.
-- Add configurable hard constraints (max agents per node, max queue per node).
+1. `[planned][P0]` Distributed chaos automation in CI
+- Scope:
+  - Run scripted partition/flap/rejoin drills as repeatable CI jobs on a multi-node matrix.
+  - Persist structured drill reports as CI artifacts.
+- Acceptance criteria:
+  - CI produces per-scenario pass/fail reports and key recovery timings.
+  - Failures include drill phase and node-level diagnostics.
 
-3. Failover policy hardening
-- Add fail-open/fail-closed modes, retry budgets, and explicit provider circuit state endpoints.
+2. `[planned][P0]` Persistent tool audit backend hardening
+- Scope:
+  - Add retention/rotation policy for DETS audit logs.
+  - Add export command (`mix scr.tools.audit.export`) for postmortem analysis.
+- Acceptance criteria:
+  - Audit retention bounds are configurable and tested.
+  - Export produces deterministic JSONL output.
 
-## Medium Priority
+3. `[planned][P1]` Adaptive fairness weights
+- Scope:
+  - Add runtime API to tune class weights without restart.
+  - Introduce fairness score metrics (served ratio vs configured weight).
+- Acceptance criteria:
+  - Weight updates are applied live and reflected in telemetry.
+  - Starvation regression tests remain green under skewed workloads.
 
-1. Durable memory backend expansion
-- Add optional SQLite/Postgres backend for `MemoryAgent`/context persistence at larger scale.
+4. `[planned][P1]` Operator diagnostics bundle
+- Scope:
+  - Add `mix scr.diagnostics.bundle` to collect config/runtime/telemetry snapshots.
+  - Include queue pressure, placement history, policy profile, and audit samples.
+- Acceptance criteria:
+  - Bundle command produces a reproducible archive in `tmp/diagnostics/`.
+  - Sensitive env fields are redacted by default.
 
-2. Distributed task routing semantics
-- Add optional at-least-once delivery with dedupe keys for inter-node task messages.
-
-3. Placement observability
-- Add dashboard panel for node quarantine state and placement decisions over time.
-
-## Nice to Have
-
-1. Workload class routing
-- Allow declaring classes (`cpu`, `io`, `external_api`) and map them to node capabilities.
-
-2. Automatic capacity tuning
-- Adapt partition counts and queue limits based on observed throughput/latency.
-
-3. Recovery drills
-- Add scripted chaos scenarios for node flapping and partial network partitions.
+5. `[planned][P2]` Documentation IA pass
+- Scope:
+  - Split large tutorials into focused guide files under `docs/guides/`.
+  - Add a short “choose your path” quickstart map for operators vs developers.
+- Acceptance criteria:
+  - `DOCS_INDEX.md` reflects the new structure.
+  - Docs lint/link checks stay green with no stale references.

@@ -45,6 +45,11 @@ defmodule SCR.TaskQueueTest do
     assert 0 == TaskQueue.size(server)
   end
 
+  test "set_max_size updates runtime queue limit", %{server: server} do
+    assert :ok = TaskQueue.set_max_size(5, server)
+    assert TaskQueue.stats(server).max_size == 5
+  end
+
   test "emits telemetry events for enqueue and dequeue", %{server: server} do
     handler_id = "task-queue-telemetry-#{System.unique_integer([:positive])}"
     parent = self()
@@ -68,7 +73,37 @@ defmodule SCR.TaskQueueTest do
                     %{priority: :normal, result: :accepted, task_type: "unknown"}}
 
     assert_receive {:telemetry_event, [:scr, :task_queue, :dequeue], %{count: 1},
-                    %{priority: :normal, result: :ok, task_type: "unknown"}}
+                    %{priority: :normal, result: :ok, task_type: "unknown", task_class: "default"}}
+  end
+
+  test "fairness scheduler avoids class starvation for equal weights" do
+    server = :"task_queue_fairness_#{System.unique_integer([:positive])}"
+
+    {:ok, _pid} =
+      start_supervised(%{
+        id: {:task_queue_fairness, server},
+        start: {TaskQueue, :start_link, [[name: server, max_size: 10]]}
+      })
+
+    assert {:ok, _} =
+             TaskQueue.enqueue(%{task_id: "a1", workload_class: "alpha"}, :normal, server)
+
+    assert {:ok, _} =
+             TaskQueue.enqueue(%{task_id: "a2", workload_class: "alpha"}, :normal, server)
+
+    assert {:ok, _} =
+             TaskQueue.enqueue(%{task_id: "a3", workload_class: "alpha"}, :normal, server)
+
+    assert {:ok, _} = TaskQueue.enqueue(%{task_id: "b1", workload_class: "beta"}, :normal, server)
+    assert {:ok, _} = TaskQueue.enqueue(%{task_id: "b2", workload_class: "beta"}, :normal, server)
+
+    assert {:ok, first} = TaskQueue.dequeue(server)
+    assert {:ok, second} = TaskQueue.dequeue(server)
+    assert {:ok, third} = TaskQueue.dequeue(server)
+    dequeued = [first.task_id, second.task_id, third.task_id]
+
+    assert Enum.any?(dequeued, &String.starts_with?(&1, "a"))
+    assert Enum.any?(dequeued, &String.starts_with?(&1, "b"))
   end
 
   test "replays persisted tasks from dets backend" do

@@ -1,4 +1,4 @@
-# SCR v0.4.0-alpha Release Notes
+# SCR v0.5.0-alpha Release Notes
 Doc Owner: SCR Maintainers
 
 Release date: 2026-02-20
@@ -53,5 +53,5 @@ Release date: 2026-02-20
 - Added market positioning document (`docs/positioning/SCR_Competitive_Comparison.md`).
 - Updated `README.md`, `QUICKSTART.md`, `AGENTS.md`, and `SCR_Improvements.md`.
 
-## Known Follow-ups (Post v0.4.0-alpha)
-- Add any newly identified backlog items to `docs/roadmap/FUTURE_TODO.md`.
+## Known Follow-ups (Post v0.5.0-alpha)
+- Populate next-cycle roadmap candidates in `docs/roadmap/FUTURE_TODO.md`.

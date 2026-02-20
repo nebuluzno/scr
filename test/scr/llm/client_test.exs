@@ -31,10 +31,16 @@ defmodule SCR.LLM.ClientTest do
     def embed(_text, _options), do: {:ok, %{embedding: [0.0]}}
     def ping, do: {:ok, %{status: "available"}}
     def list_models, do: {:ok, [%{name: "success"}]}
-    def stream(_prompt, callback, _options), do: callback.("ok_stream")
-    {:ok, %{content: "ok_stream"}}
-    def chat_stream(_messages, callback, _options), do: callback.("ok_chat_stream")
-    {:ok, %{content: "ok_chat_stream"}}
+
+    def stream(_prompt, callback, _options) do
+      callback.("ok_stream")
+      {:ok, %{content: "ok_stream"}}
+    end
+
+    def chat_stream(_messages, callback, _options) do
+      callback.("ok_chat_stream")
+      {:ok, %{content: "ok_chat_stream"}}
+    end
 
     def chat_with_tools(_messages, _tool_definitions, _options),
       do: {:ok, %{content: "ok_tools", message: %{content: "ok_tools"}}}
@@ -124,5 +130,69 @@ defmodule SCR.LLM.ClientTest do
     )
 
     assert {:error, %{type: :connection_error}} = Client.chat([%{role: "user", content: "hello"}])
+  end
+
+  test "fail-open returns fallback response when provider chain is unavailable" do
+    Application.put_env(:scr, :llm,
+      provider: :openai,
+      failover_enabled: true,
+      failover_mode: :fail_open,
+      failover_providers: [:openai],
+      failover_fail_open_provider: :missing_provider,
+      adapter_overrides: %{openai: FailingAdapter}
+    )
+
+    assert {:ok, response} = Client.chat([%{role: "user", content: "hello"}])
+    assert response.degraded == true
+    assert response.fail_open == true
+    assert response.provider in [:fail_open, :missing_provider]
+  end
+
+  test "fail-closed returns retry budget exhausted error when budget is consumed" do
+    Application.put_env(:scr, :llm,
+      provider: :openai,
+      failover_enabled: true,
+      failover_mode: :fail_closed,
+      failover_providers: [:openai, :anthropic],
+      failover_errors: [:connection_error],
+      failover_cooldown_ms: 0,
+      failover_retry_budget: [max_retries: 1, window_ms: 60_000],
+      adapter_overrides: %{
+        openai: FailingAdapter,
+        anthropic: SuccessAdapter
+      }
+    )
+
+    assert {:ok, _} = Client.chat([%{role: "user", content: "hello"}])
+    Client.clear_cache()
+
+    assert {:error, %{type: :failover_retry_budget_exhausted}} =
+             Client.chat([%{role: "user", content: "hello"}])
+  end
+
+  test "failover_state exposes circuit and budget info" do
+    Application.put_env(:scr, :llm,
+      provider: :openai,
+      failover_enabled: true,
+      failover_mode: :fail_closed,
+      failover_providers: [:openai, :anthropic],
+      failover_errors: [:connection_error],
+      failover_cooldown_ms: 30_000,
+      failover_retry_budget: [max_retries: 5, window_ms: 60_000],
+      adapter_overrides: %{
+        openai: FailingAdapter,
+        anthropic: SuccessAdapter
+      }
+    )
+
+    assert {:ok, _} = Client.chat([%{role: "user", content: "hello"}])
+    state = Client.failover_state()
+    openai = Enum.find(state.providers, &(&1.provider == :openai))
+
+    assert state.mode == :fail_closed
+    assert is_map(openai)
+    assert openai.failures >= 1
+    assert openai.circuit_open == true
+    assert state.retry_budget.remaining < state.retry_budget.max_retries
   end
 end

@@ -58,6 +58,25 @@ jobs:
           grep -q "v$VERSION" lib/scr_web/components/layouts/root.html.heex
           grep -q "\"version\" => \"$VERSION\"" lib/scr/tools/mcp/client.ex
 
+      - name: Setup BEAM for docs command smoke
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.0"
+
+      - name: Install Elixir dependencies for docs command smoke
+        run: mix deps.get
+
+      - name: Docs command smoke checks
+        run: |
+          set -euo pipefail
+          mix help scr.memory.migrate > /dev/null
+          mix help scr.memory.verify > /dev/null
+          mix help scr.mcp.smoke > /dev/null
+          mix scr.memory.verify --backend ets
+          mix scr.memory.migrate --from ets --to dets --to-path tmp/docs_ci_memory
+          mix test --only distributed_resilience --exclude multi_node
+
   test:
     name: Elixir CI
     runs-on: ubuntu-latest
@@ -144,6 +163,50 @@ jobs:
         with:
           name: coverage-report
           path: cover/
+
+  distributed_resilience:
+    name: Distributed Resilience (${{ matrix.scenario }})
+    runs-on: ubuntu-latest
+    needs: test
+
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ["single-node", "multi-node"]
+
+    env:
+      MIX_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup BEAM
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.0"
+
+      - name: Restore deps and build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run distributed resilience tests
+        run: |
+          if [ "${{ matrix.scenario }}" = "single-node" ]; then
+            mix test --only distributed_resilience --exclude multi_node
+          else
+            SCR_RUN_MULTI_NODE_TESTS=true mix test --only distributed_resilience --only multi_node
+          fi
 
   visual_regression:
     name: Visual Regression (Baseline Diff)

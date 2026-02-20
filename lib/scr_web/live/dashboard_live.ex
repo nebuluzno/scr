@@ -7,6 +7,8 @@ defmodule SCRWeb.DashboardLive do
       Phoenix.PubSub.subscribe(SCR.PubSub, "agents")
       Phoenix.PubSub.subscribe(SCR.PubSub, "tasks")
       Phoenix.PubSub.subscribe(SCR.PubSub, "metrics")
+      Phoenix.PubSub.subscribe(SCR.PubSub, "distributed_observability")
+      Phoenix.PubSub.subscribe(SCR.PubSub, "tool_audit")
 
       # Schedule periodic updates
       :timer.send_interval(5000, :refresh_stats)
@@ -20,7 +22,9 @@ defmodule SCRWeb.DashboardLive do
         metrics_stats: get_metrics_stats(),
         queue_stats: get_queue_stats(),
         recent_tasks: get_recent_tasks(),
-        tools: get_tools()
+        tools: get_tools(),
+        recent_tool_decisions: get_recent_tool_decisions(),
+        placement_observability: get_placement_observability()
       )
 
     {:ok, socket}
@@ -33,7 +37,9 @@ defmodule SCRWeb.DashboardLive do
        agent_count: get_agent_count(),
        cache_stats: get_cache_stats(),
        metrics_stats: get_metrics_stats(),
-       queue_stats: get_queue_stats()
+       queue_stats: get_queue_stats(),
+       recent_tool_decisions: get_recent_tool_decisions(),
+       placement_observability: get_placement_observability()
      )}
   end
 
@@ -83,6 +89,16 @@ defmodule SCRWeb.DashboardLive do
   @impl true
   def handle_info({:queue_drained, _payload}, socket) do
     {:noreply, assign(socket, queue_stats: get_queue_stats())}
+  end
+
+  @impl true
+  def handle_info({:placement_observability_updated, _snapshot}, socket) do
+    {:noreply, assign(socket, placement_observability: get_placement_observability())}
+  end
+
+  @impl true
+  def handle_info({:tool_audit_updated, _entry}, socket) do
+    {:noreply, assign(socket, recent_tool_decisions: get_recent_tool_decisions())}
   end
 
   @impl true
@@ -224,6 +240,31 @@ defmodule SCRWeb.DashboardLive do
 
           <div class="card">
             <div class="card-header">
+              <h3 class="card-title">🛡️ Tool Decisions</h3>
+            </div>
+            <div class="card-body">
+              <%= if @recent_tool_decisions == [] do %>
+                <p class="subtitle">No recent tool decisions</p>
+              <% else %>
+                <div class="agent-list">
+                  <%= for decision <- @recent_tool_decisions |> Enum.take(6) do %>
+                    <div class="agent-item">
+                      <div class="agent-info">
+                        <span class="agent-id"><%= decision.tool %></span>
+                        <span class={"agent-type badge #{if decision.decision == :allowed, do: "badge-success", else: "badge-error"}"}>
+                          <%= decision.decision %>
+                        </span>
+                      </div>
+                      <span class="badge badge-secondary"><%= decision.reason %></span>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
               <h3 class="card-title">🧵 Queue Control</h3>
             </div>
             <div class="card-body">
@@ -241,6 +282,44 @@ defmodule SCRWeb.DashboardLive do
                 <button class="btn btn-secondary btn-sm" phx-click="clear_queue">Clear</button>
                 <button class="btn btn-secondary btn-sm" phx-click="drain_queue">Drain</button>
               </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">🛰️ Placement Observability</h3>
+            </div>
+            <div class="card-body">
+              <p>
+                Quarantined Nodes: <strong><%= @placement_observability.quarantined_count %></strong>
+              </p>
+              <%= if @placement_observability.quarantined_count > 0 do %>
+                <p>
+                  <%= @placement_observability.quarantined_nodes |> Enum.join(", ") %>
+                </p>
+              <% end %>
+              <p>
+                Last Best Node:
+                <strong><%= @placement_observability.last_best_node || "n/a" %></strong>
+              </p>
+              <p>
+                Last Best Score:
+                <strong><%= @placement_observability.last_best_score || "n/a" %></strong>
+              </p>
+              <%= if @placement_observability.history != [] do %>
+                <div style="margin-top: 0.5rem; max-height: 180px; overflow-y: auto;">
+                  <%= for item <- @placement_observability.history do %>
+                    <div class="agent-item">
+                      <div class="agent-info">
+                        <span class="agent-id"><%= item.captured_at %></span>
+                      </div>
+                      <span class="badge badge-info">
+                        <%= item.best_node || "n/a" %> (<%= item.best_score || "n/a" %>)
+                      </span>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
             </div>
           </div>
         </div>
@@ -311,6 +390,69 @@ defmodule SCRWeb.DashboardLive do
       %{name: descriptor.name, description: descriptor.description, source: descriptor.source}
     end)
   end
+
+  defp get_recent_tool_decisions do
+    SCR.Tools.AuditLog.recent(12)
+  rescue
+    _ -> []
+  end
+
+  defp get_placement_observability do
+    history =
+      case SCR.Distributed.PlacementHistory.recent(8) do
+        entries when is_list(entries) ->
+          Enum.map(entries, fn entry ->
+            best = Map.get(entry, :best_node)
+
+            %{
+              captured_at:
+                entry
+                |> Map.get(:captured_at)
+                |> format_dt(),
+              best_node: best && to_string(Map.get(best, :node)),
+              best_score: best && Map.get(best, :score)
+            }
+          end)
+
+        _ ->
+          []
+      end
+
+    latest = List.first(history)
+
+    watchdog =
+      case SCR.Distributed.NodeWatchdog.status() do
+        status when is_map(status) -> status
+        _ -> %{}
+      end
+
+    quarantined_nodes =
+      watchdog
+      |> Map.get(:quarantined_nodes, %{})
+      |> Map.keys()
+      |> Enum.map(&to_string/1)
+
+    %{
+      history: history,
+      quarantined_nodes: quarantined_nodes,
+      quarantined_count: length(quarantined_nodes),
+      last_best_node: latest && latest.best_node,
+      last_best_score: latest && latest.best_score
+    }
+  rescue
+    _ ->
+      %{
+        history: [],
+        quarantined_nodes: [],
+        quarantined_count: 0,
+        last_best_node: nil,
+        last_best_score: nil
+      }
+  end
+
+  defp format_dt(nil), do: "n/a"
+  defp format_dt(%DateTime{} = dt), do: dt |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+  defp format_dt(_), do: "n/a"
 
   defp status_badge(:running), do: "badge-success"
   defp status_badge(:idle), do: "badge-info"

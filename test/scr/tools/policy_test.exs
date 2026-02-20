@@ -137,4 +137,59 @@ defmodule SCR.Tools.PolicyTest do
                ctx
              )
   end
+
+  test "runtime profile switch updates current profile" do
+    Application.put_env(:scr, :tools,
+      policy_profile: :strict,
+      profiles: %{strict: [], balanced: []}
+    )
+
+    assert Policy.current_profile() == :strict
+    assert :ok = Policy.set_profile(:balanced)
+    assert Policy.current_profile() == :balanced
+  end
+
+  test "profile override can disable a non-risky tool" do
+    Application.put_env(:scr, :tools,
+      policy_profile: :strict,
+      profiles: %{strict: [tool_overrides: %{"calculator" => [enabled: false]}]}
+    )
+
+    descriptor = %ToolDescriptor{
+      name: "calculator",
+      source: :native,
+      module: SCR.Tools.Calculator,
+      description: "calc",
+      schema: %{"type" => "object", "properties" => %{}}
+    }
+
+    ctx = ExecutionContext.new(%{mode: :strict})
+    assert {:error, :tool_disabled_by_profile} = Policy.authorize(descriptor, %{"a" => 1}, ctx)
+  end
+
+  test "context policy_profile overrides global profile" do
+    Application.put_env(:scr, :tools,
+      policy_profile: :strict,
+      profiles: %{
+        strict: [tool_overrides: %{"calculator" => [enabled: false]}],
+        balanced: [tool_overrides: %{"calculator" => [enabled: true]}]
+      }
+    )
+
+    descriptor = %ToolDescriptor{
+      name: "calculator",
+      source: :native,
+      module: SCR.Tools.Calculator,
+      description: "calc",
+      schema: %{"type" => "object", "properties" => %{}}
+    }
+
+    strict_ctx = ExecutionContext.new(%{mode: :strict})
+    balanced_ctx = ExecutionContext.new(%{mode: :strict, policy_profile: :balanced})
+
+    assert {:error, :tool_disabled_by_profile} =
+             Policy.authorize(descriptor, %{"a" => 1}, strict_ctx)
+
+    assert :ok = Policy.authorize(descriptor, %{"a" => 1}, balanced_ctx)
+  end
 end

@@ -130,10 +130,37 @@ defmodule SCR.Supervisor do
         if node(pid) == Node.self() do
           Agent.send_message(agent_id, message)
         else
-          GenServer.cast(pid, {:deliver_message, message})
+          routed_message = ensure_task_dedupe_key(message)
+
+          if routing_at_least_once_enabled?() and routed_message.type == :task do
+            route_remote_with_retry(node(pid), agent_id, routed_message)
+          else
+            GenServer.cast(pid, {:deliver_message, routed_message})
+            :ok
+          end
+        end
+        |> case do
+          :ok -> :ok
+          other -> other
         end
 
-        :ok
+      {:error, :not_found} ->
+        {:error, :agent_not_found}
+    end
+  end
+
+  @doc """
+  Inbound routing entrypoint used by remote nodes to deliver messages.
+  """
+  def route_inbound(agent_id, message) do
+    case get_agent_pid(agent_id) do
+      {:ok, pid} ->
+        if node(pid) == Node.self() do
+          Agent.send_message(agent_id, message)
+          :ok
+        else
+          {:error, :not_local}
+        end
 
       {:error, :not_found} ->
         {:error, :agent_not_found}
@@ -234,5 +261,115 @@ defmodule SCR.Supervisor do
     end
   catch
     :exit, _ -> :ok
+  end
+
+  defp route_remote_with_retry(target_node, agent_id, message) do
+    cfg = routing_config()
+    max_attempts = max(Keyword.get(cfg, :max_attempts, 3), 1)
+    retry_delay_ms = max(Keyword.get(cfg, :retry_delay_ms, 100), 0)
+    timeout_ms = max(Keyword.get(cfg, :rpc_timeout_ms, distributed_rpc_timeout_ms()), 100)
+
+    do_route_remote_with_retry(
+      target_node,
+      agent_id,
+      message,
+      max_attempts,
+      retry_delay_ms,
+      timeout_ms,
+      1
+    )
+  end
+
+  defp do_route_remote_with_retry(
+         _target_node,
+         _agent_id,
+         _message,
+         max_attempts,
+         _retry_delay_ms,
+         _timeout_ms,
+         attempt
+       )
+       when attempt > max_attempts do
+    {:error, :delivery_failed}
+  end
+
+  defp do_route_remote_with_retry(
+         target_node,
+         agent_id,
+         message,
+         max_attempts,
+         retry_delay_ms,
+         timeout_ms,
+         attempt
+       ) do
+    case :rpc.call(target_node, __MODULE__, :route_inbound, [agent_id, message], timeout_ms) do
+      :ok ->
+        :ok
+
+      {:badrpc, _reason} ->
+        Process.sleep(retry_delay_ms)
+
+        do_route_remote_with_retry(
+          target_node,
+          agent_id,
+          message,
+          max_attempts,
+          retry_delay_ms,
+          timeout_ms,
+          attempt + 1
+        )
+
+      {:error, _reason} ->
+        Process.sleep(retry_delay_ms)
+
+        do_route_remote_with_retry(
+          target_node,
+          agent_id,
+          message,
+          max_attempts,
+          retry_delay_ms,
+          timeout_ms,
+          attempt + 1
+        )
+
+      _other ->
+        Process.sleep(retry_delay_ms)
+
+        do_route_remote_with_retry(
+          target_node,
+          agent_id,
+          message,
+          max_attempts,
+          retry_delay_ms,
+          timeout_ms,
+          attempt + 1
+        )
+    end
+  end
+
+  defp ensure_task_dedupe_key(%SCR.Message{type: :task, dedupe_key: nil} = message) do
+    key =
+      get_in(message.payload, [:task, :dedupe_key]) ||
+        get_in(message.payload, [:task, :task_id]) ||
+        message.message_id
+
+    %{message | dedupe_key: to_string(key)}
+  end
+
+  defp ensure_task_dedupe_key(message), do: message
+
+  defp routing_at_least_once_enabled? do
+    cfg = routing_config()
+    Keyword.get(cfg, :enabled, false) and Keyword.get(cfg, :at_least_once, true)
+  end
+
+  defp routing_config do
+    SCR.ConfigCache.get(:distributed, [])
+    |> Keyword.get(:routing, [])
+  end
+
+  defp distributed_rpc_timeout_ms do
+    SCR.ConfigCache.get(:distributed, [])
+    |> Keyword.get(:rpc_timeout_ms, 5_000)
   end
 end

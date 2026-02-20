@@ -16,6 +16,7 @@ defmodule SCR.Agent do
   @type agent_type :: :planner | :worker | :critic | :memory | :supervisor
   @type agent_state :: :idle | :running | :crashed | :stopped
   @type state :: map()
+  @dedupe_table :scr_routing_dedupe
 
   @doc """
   Called when the agent is started.
@@ -123,22 +124,26 @@ defmodule SCR.Agent do
   end
 
   def handle_cast({:deliver_message, message}, state) do
-    # Pass a map with agent_id and agent_state to handle_message
-    agent_context = %{agent_id: state.agent_id, agent_state: state.agent_state}
+    if duplicate_task_message?(state.agent_id, message) do
+      {:noreply, state}
+    else
+      # Pass a map with agent_id and agent_state to handle_message
+      agent_context = %{agent_id: state.agent_id, agent_state: state.agent_state}
 
-    case state.module.handle_message(message, agent_context) do
-      {:noreply, new_agent_state} ->
-        new_state = %{
-          state
-          | agent_state: new_agent_state,
-            message_count: state.message_count + 1
-        }
+      case state.module.handle_message(message, agent_context) do
+        {:noreply, new_agent_state} ->
+          new_state = %{
+            state
+            | agent_state: new_agent_state,
+              message_count: state.message_count + 1
+          }
 
-        {:noreply, new_state}
+          {:noreply, new_state}
 
-      {:stop, reason, new_agent_state} ->
-        new_state = %{state | agent_state: new_agent_state, status: :crashed}
-        {:stop, reason, new_state}
+        {:stop, reason, new_agent_state} ->
+          new_state = %{state | agent_state: new_agent_state, status: :crashed}
+          {:stop, reason, new_state}
+      end
     end
   end
 
@@ -203,6 +208,10 @@ defmodule SCR.Agent do
     end
   end
 
+  def handle_info({:EXIT, _pid, :normal}, state) do
+    {:noreply, state}
+  end
+
   def handle_info({:EXIT, _pid, reason}, state) do
     IO.puts("⚠️ Agent #{state.agent_id} received exit signal: #{reason}")
     {:stop, reason, state}
@@ -245,5 +254,76 @@ defmodule SCR.Agent do
     else
       :ok
     end
+  end
+
+  defp duplicate_task_message?(_agent_id, %{type: type}) when type != :task, do: false
+
+  defp duplicate_task_message?(agent_id, message) do
+    if dedupe_enabled?() do
+      dedupe_key = message_dedupe_key(message)
+
+      if is_nil(dedupe_key) do
+        false
+      else
+        ensure_dedupe_table()
+        cleanup_expired(agent_id)
+        now_ms = System.system_time(:millisecond)
+        table_key = {agent_id, dedupe_key}
+
+        case :ets.lookup(@dedupe_table, table_key) do
+          [{^table_key, expires_at}] when is_integer(expires_at) and expires_at > now_ms ->
+            true
+
+          _ ->
+            :ets.insert(@dedupe_table, {table_key, now_ms + dedupe_ttl_ms()})
+            false
+        end
+      end
+    else
+      false
+    end
+  end
+
+  defp message_dedupe_key(message) do
+    message.dedupe_key ||
+      get_in(message.payload, [:task, :dedupe_key]) ||
+      get_in(message.payload, [:task, :task_id]) ||
+      message.message_id
+  end
+
+  defp ensure_dedupe_table do
+    if :ets.whereis(@dedupe_table) == :undefined do
+      :ets.new(@dedupe_table, [:set, :named_table, :public, read_concurrency: true])
+    end
+  end
+
+  defp cleanup_expired(agent_id) do
+    cutoff = System.system_time(:millisecond)
+
+    match_spec = [
+      {{{agent_id, :"$1"}, :"$2"}, [{:<, :"$2", cutoff}], [true]}
+    ]
+
+    :ets.select_delete(@dedupe_table, match_spec)
+  rescue
+    _ -> :ok
+  end
+
+  defp dedupe_enabled? do
+    SCR.ConfigCache.get(:distributed, [])
+    |> Keyword.get(:routing, [])
+    |> then(fn routing ->
+      Keyword.get(routing, :enabled, false) and Keyword.get(routing, :dedupe_enabled, true)
+    end)
+  rescue
+    _ -> false
+  end
+
+  defp dedupe_ttl_ms do
+    SCR.ConfigCache.get(:distributed, [])
+    |> Keyword.get(:routing, [])
+    |> Keyword.get(:dedupe_ttl_ms, 300_000)
+  rescue
+    _ -> 300_000
   end
 end

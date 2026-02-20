@@ -594,3 +594,123 @@ SCR.LLM.Client.clear_failover_state()
 ### Expected Results
 - Calls return successful content when at least one provider is healthy.
 - `response.provider` shows the provider that actually answered.
+
+## Tutorial 14: Distributed Resilience Drill Workflow
+
+### Goal
+Run deterministic resilience checks locally and validate expected recovery behavior.
+
+### Steps
+1. Run single-node resilience suite:
+```bash
+mix test --only distributed_resilience --exclude multi_node
+```
+2. Run multi-node resilience suite:
+```bash
+SCR_RUN_MULTI_NODE_TESTS=true mix test --only distributed_resilience --only multi_node
+```
+3. Open the runbook for expected outcomes and troubleshooting:
+`docs/guides/DISTRIBUTED_RESILIENCE_RUNBOOK.md`
+
+### Expected Results
+- Single-node and multi-node resilience suites pass.
+- Partition/rejoin and flap recovery paths complete without manual intervention.
+
+## Tutorial 15: Memory Backend Migration + Verify
+
+### Goal
+Migrate memory records across backends and verify consistency after migration.
+
+### Steps
+1. Prepare source data in DETS backend:
+```bash
+iex -S mix
+```
+```elixir
+Application.put_env(:scr, :memory_storage, backend: :dets, path: "tmp/memory")
+SCR.ConfigCache.refresh(:memory_storage)
+```
+2. Migrate DETS -> SQLite:
+```bash
+mix scr.memory.migrate --from dets --to sqlite --from-path tmp/memory --to-path tmp/memory/scr_memory.sqlite3
+```
+3. Verify DETS:
+```bash
+mix scr.memory.verify --backend dets --path tmp/memory
+```
+4. Verify SQLite:
+```bash
+mix scr.memory.verify --backend sqlite --path tmp/memory/scr_memory.sqlite3
+```
+
+### Expected Results
+- Migration command completes with source/target counts.
+- Verify command reports `verify: ok` for healthy stores.
+
+## Tutorial 16: Policy Profiles + Tool Audit Workflow
+
+### Goal
+Switch tool governance profiles at runtime and inspect allow/deny audit decisions.
+
+### Steps
+1. Start IEx:
+```bash
+iex -S mix
+```
+2. Inspect and switch active profile:
+```elixir
+SCR.Tools.Policy.current_profile()
+SCR.Tools.Policy.set_profile(:balanced)
+SCR.Tools.Policy.current_profile()
+```
+3. Execute a couple of tool calls:
+```elixir
+ctx = SCR.Tools.ExecutionContext.new(%{mode: :strict, task_id: "policy_demo_1"})
+SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, "b" => 2}, ctx)
+SCR.Tools.Registry.execute_tool("code_execution", %{"code" => "1 + 1"}, ctx)
+```
+4. Inspect audit log directly:
+```elixir
+SCR.Tools.AuditLog.recent(10)
+```
+5. Open dashboard and review `Tool Decisions` card at `/`.
+
+### Expected Results
+- Profile changes apply immediately.
+- Audit entries include decision, reason, tool, source, and context identifiers.
+
+## Tutorial 17: Production Hardening Runbook Flow
+
+### Goal
+Apply a minimal production hardening profile for logs, observability, resilience checks, and policy governance.
+
+### Steps
+1. Set production env:
+```bash
+export MIX_ENV=prod
+export SCR_LOG_FORMAT=json
+export SCR_OTEL_ENABLED=true
+export SCR_TOOLS_POLICY_PROFILE=strict
+export SCR_TOOLS_AUDIT_BACKEND=dets
+export SCR_TOOLS_AUDIT_PATH=tmp/tool_audit_log.dets
+```
+2. Compile and boot:
+```bash
+mix deps.get
+mix compile
+mix phx.server
+```
+3. Validate command-level checks:
+```bash
+mix scr.memory.verify --backend ets
+mix test --only distributed_resilience --exclude multi_node
+```
+4. Validate metrics and dashboards:
+- `/metrics/prometheus`
+- `/` dashboard (`Queue`, `Placement`, `Tool Decisions`)
+5. Review logs for trace context fields (`trace_id`, `task_id`, `agent_id`).
+
+### Expected Results
+- Runtime starts with JSON logs + OTel bridge enabled.
+- Policy profile and audit backend are active.
+- Baseline resilience and memory verification checks pass.

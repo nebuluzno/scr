@@ -71,8 +71,128 @@ defmodule SCR.DistributedTest do
     assert entry.node == Node.self()
     assert is_number(entry.score)
     assert Map.has_key?(entry, :queue_size)
+    assert Map.has_key?(entry, :queue_max_size)
+    assert Map.has_key?(entry, :queue_utilization)
+    assert Map.has_key?(entry, :queue_saturated)
+    assert Map.has_key?(entry, :queue_growth_per_sec)
     assert Map.has_key?(entry, :agent_count)
+    assert Map.has_key?(entry, :agent_growth_per_sec)
     assert Map.has_key?(entry, :unhealthy_count)
+    assert Map.has_key?(entry, :unhealthy_growth_per_sec)
+    assert Map.has_key?(entry, :constrained)
+  end
+
+  test "queue_pressure_report exposes node pressure and cluster_backpressured?/2 uses thresholds" do
+    original = Application.get_env(:scr, :distributed, [])
+
+    Application.put_env(
+      :scr,
+      :distributed,
+      Keyword.merge(original,
+        enabled: true,
+        backpressure: [
+          enabled: true,
+          cluster_saturation_threshold: 0.0,
+          max_node_utilization: 1.0
+        ]
+      )
+    )
+
+    on_exit(fn ->
+      Application.put_env(:scr, :distributed, original)
+    end)
+
+    assert {:ok, [entry]} = SCR.Distributed.queue_pressure_report([Node.self()], 1_000)
+    assert entry.node == Node.self()
+    assert is_integer(entry.size)
+    assert is_integer(entry.max_size)
+    assert is_float(entry.utilization)
+    assert is_boolean(entry.saturated)
+    assert SCR.Distributed.cluster_backpressured?([Node.self()], 1_000)
+  end
+
+  test "pick_start_node returns constrained error when hard limits block placement" do
+    original = Application.get_env(:scr, :distributed, [])
+
+    Application.put_env(
+      :scr,
+      :distributed,
+      Keyword.merge(original,
+        enabled: true,
+        backpressure: [
+          enabled: true,
+          cluster_saturation_threshold: 1.0,
+          max_node_utilization: 1.0
+        ],
+        placement_constraints: [
+          max_agents_per_node: nil,
+          max_queue_per_node: 0
+        ]
+      )
+    )
+
+    on_exit(fn ->
+      Application.put_env(:scr, :distributed, original)
+    end)
+
+    assert {:error, :cluster_constrained} = SCR.Distributed.pick_start_node([Node.self()])
+  end
+
+  test "workload class routing rejects incompatible nodes when strict mode is enabled" do
+    original = Application.get_env(:scr, :distributed, [])
+
+    Application.put_env(
+      :scr,
+      :distributed,
+      Keyword.merge(original,
+        enabled: true,
+        workload_routing: [
+          enabled: true,
+          strict: true,
+          classes: %{"cpu" => ["cpu"]},
+          local_capabilities: [],
+          node_capabilities: %{}
+        ]
+      )
+    )
+
+    on_exit(fn ->
+      Application.put_env(:scr, :distributed, original)
+    end)
+
+    assert {:error, :cluster_constrained} =
+             SCR.Distributed.pick_start_node_for_class("cpu", [Node.self()])
+  end
+
+  test "workload class routing selects compatible node" do
+    original = Application.get_env(:scr, :distributed, [])
+
+    Application.put_env(
+      :scr,
+      :distributed,
+      Keyword.merge(original,
+        enabled: true,
+        workload_routing: [
+          enabled: true,
+          strict: true,
+          classes: %{"cpu" => ["cpu"]},
+          local_capabilities: ["cpu"],
+          node_capabilities: %{}
+        ]
+      )
+    )
+
+    on_exit(fn ->
+      Application.put_env(:scr, :distributed, original)
+    end)
+
+    assert {:ok, node} = SCR.Distributed.pick_start_node_for_class("cpu", [Node.self()])
+    assert node == Node.self()
+
+    assert {:ok, [entry]} =
+             SCR.Distributed.placement_report([Node.self()], 1_000, %{workload_class: "cpu"})
+
+    assert entry.workload_compatible == true
   end
 
   test "handoff_agent/3 rejects same-node handoff" do

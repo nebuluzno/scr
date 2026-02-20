@@ -43,12 +43,16 @@ defmodule SCR do
         {SCR.Distributed.SpecRegistry, []},
         {SCR.Distributed.NodeWatchdog, []},
         {SCR.Distributed.HandoffManager, []},
+        {SCR.Distributed.PlacementHistory, []},
+        {SCR.Distributed.CapacityTuner, []},
         # Distributed peer connectivity manager (no-op unless enabled in config)
         {SCR.Distributed.PeerManager, []},
         # Start MCP server manager (no-op unless enabled in config)
         {SCR.Tools.MCP.ServerManager, []},
         # Tool call rate limiting
         {SCR.Tools.RateLimiter, []},
+        # Tool authorization/execution audit trail
+        {SCR.Tools.AuditLog, []},
         # Start priority task queue with backpressure
         {SCR.TaskQueue, []},
         # Shared multi-agent task context

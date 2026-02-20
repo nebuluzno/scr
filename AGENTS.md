@@ -23,13 +23,25 @@ Doc Owner: SCR Maintainers
 SCR.Supervisor.Tree (Supervisor)
 ├── SCR.PubSub (Phoenix.PubSub)
 ├── SCR.ClusterSupervisor (Cluster.Supervisor, optional)
+├── SCR.Telemetry (Supervisor)
+├── SCR.Telemetry.Stream (GenServer)
+├── SCR.Observability.OTelBridge (GenServer, optional)
 ├── SCR.LLM.Cache (GenServer)
 ├── SCR.LLM.Metrics (GenServer)
 ├── SCR.Tools.Registry (GenServer)
 ├── SCR.Distributed.SpecRegistry (GenServer)
+├── SCR.Distributed.NodeWatchdog (GenServer)
 ├── SCR.Distributed.HandoffManager (GenServer)
+├── SCR.Distributed.PlacementHistory (GenServer)
+├── SCR.Distributed.CapacityTuner (GenServer)
 ├── SCR.Distributed.PeerManager (GenServer)
+├── SCR.Tools.MCP.ServerManager (GenServer, optional)
+├── SCR.Tools.RateLimiter (GenServer)
+├── SCR.Tools.AuditLog (GenServer)
+├── SCR.TaskQueue (GenServer)
+├── SCR.AgentContext (Partitioned store)
 ├── SCRWeb.Endpoint (Phoenix.Endpoint)
+├── SCR.HealthCheck (GenServer)
 └── SCR.Supervisor (DynamicSupervisor)
     ├── MemoryAgent (permanent)
     ├── CriticAgent (permanent)
@@ -95,7 +107,13 @@ All inter-agent communication uses `SCR.Message` struct:
 
 - `SCR.Tools.Registry` - Tool registration and discovery
 - `SCR.Tools.Behaviour` - Behaviour for tool modules
+- `SCR.Tools.Policy` - Profile-aware authorization and sandbox checks
+- `SCR.Tools.AuditLog` - Allow/deny decision audit trail (ETS/DETS)
 - Tools: `Calculator`, `HTTPRequest`, `Search`, `FileOperations`, `Time`, `Weather`, `CodeExecution`
+
+### Observability (`lib/scr/telemetry/`)
+
+- `SCR.Telemetry` - Prometheus metrics exporter and periodic runtime emitters
 - `SCR.Telemetry.Stream` - Live telemetry event stream (recent-event ring buffer + PubSub)
 
 ### Web Interface (`lib/scr_web/`)
@@ -297,11 +315,7 @@ Key dependencies from `mix.exs`:
 
 ## Future Roadmap
 
-See `SCR_Improvements.md` for planned features:
-
-- Distributed placement strategy v2
-- Queue durability beyond memory
-- Provider failover policy
+See `docs/roadmap/FUTURE_TODO.md` for upcoming roadmap items.
 
 ## Related Documentation
 
@@ -316,6 +330,6 @@ See `SCR_Improvements.md` for planned features:
 
 ## Version
 
-Current version: **v0.4.0-alpha**
+Current version: **v0.5.0-alpha**
 
 This is an early alpha release for feedback and testing. Expect breaking changes.

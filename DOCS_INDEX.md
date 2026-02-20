@@ -5,45 +5,48 @@ Use this file as the canonical entry point for project documentation.
 
 ## Start Here
 
-1. `/Users/lars/Documents/SCR/README.md`
+1. `README.md`
 - Product-level overview, capabilities, and core config.
 
-2. `/Users/lars/Documents/SCR/QUICKSTART.md`
+2. `QUICKSTART.md`
 - Fast local setup and smoke validation.
 
-3. `/Users/lars/Documents/SCR/TUTORIALS.md`
+3. `TUTORIALS.md`
 - Step-by-step operational labs.
 
 ## Architecture and Runtime
 
-1. `/Users/lars/Documents/SCR/AGENTS.md`
+1. `AGENTS.md`
 - Agent/runtime architecture reference for contributors and coding agents.
 
-2. `/Users/lars/Documents/SCR/docs/architecture/SCR_LLM_Documentation.txt`
+2. `docs/architecture/SCR_LLM_Documentation.txt`
 - LLM integration details.
 
-3. `/Users/lars/Documents/SCR/docs/guides/SCR_UseCases.md`
+3. `docs/guides/SCR_UseCases.md`
 - Example scenarios and usage flows.
+
+4. `docs/guides/DISTRIBUTED_RESILIENCE_RUNBOOK.md`
+- Deterministic distributed resilience validation workflow and troubleshooting.
 
 ## Planning and Roadmap
 
-1. `/Users/lars/Documents/SCR/SCR_Improvements.md`
+1. `SCR_Improvements.md`
 - Delivered milestone log and current recommendations.
 
-2. `/Users/lars/Documents/SCR/docs/roadmap/FUTURE_TODO.md`
+2. `docs/roadmap/FUTURE_TODO.md`
 - Forward-looking backlog for upcoming work.
 
 ## Releases and Operations
 
-1. `/Users/lars/Documents/SCR/docs/release/RELEASE_NOTES_v0.4.0-alpha.md`
+1. `docs/release/RELEASE_NOTES_v0.5.0-alpha.md`
 - Current release highlights and follow-ups.
 
-2. `/Users/lars/Documents/SCR/RELEASE_CHECKLIST.md`
+2. `RELEASE_CHECKLIST.md`
 - Release validation and cut process.
 
 ## Comparative Positioning
 
-1. `/Users/lars/Documents/SCR/docs/positioning/SCR_Competitive_Comparison.md`
+1. `docs/positioning/SCR_Competitive_Comparison.md`
 - Practical comparison against common alternatives.
 
 ## Documentation Cleanup Rules (Adopted)
@@ -68,3 +71,4 @@ Use this file as the canonical entry point for project documentation.
 - 2026-02-20: Created docs index and standardized doc ownership lines.
 - 2026-02-20: Moved long-form guides/architecture/roadmap/positioning/release docs under `docs/`.
 - 2026-02-20: Added docs CI version-drift check (`mix.exs` vs README/AGENTS/UI footer/MCP client).
+- 2026-02-20: Updated index paths to workspace-relative paths and bumped latest release notes to `v0.5.0-alpha`.

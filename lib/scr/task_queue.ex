@@ -51,6 +51,13 @@ defmodule SCR.TaskQueue do
   end
 
   @doc """
+  Update the queue max size at runtime.
+  """
+  def set_max_size(max_size, server \\ __MODULE__) when is_integer(max_size) and max_size > 0 do
+    GenServer.call(server, {:set_max_size, max_size})
+  end
+
+  @doc """
   Clear all queued tasks.
   """
   def clear(server \\ __MODULE__) do
@@ -112,6 +119,7 @@ defmodule SCR.TaskQueue do
       end
 
     backend = Keyword.get(opts, :backend, Keyword.get(cfg, :backend, @default_backend))
+    fairness_cfg = Keyword.get(cfg, :fairness, [])
 
     base_state = %{
       high: :queue.new(),
@@ -124,7 +132,10 @@ defmodule SCR.TaskQueue do
       paused: false,
       backend: backend,
       dets_table: nil,
-      next_id: 1
+      next_id: 1,
+      fairness_enabled: Keyword.get(fairness_cfg, :enabled, true),
+      fairness_weights: Keyword.get(fairness_cfg, :class_weights, %{}),
+      class_served_counts: %{}
     }
 
     {:ok, maybe_init_persistence(base_state, cfg, opts)}
@@ -176,6 +187,10 @@ defmodule SCR.TaskQueue do
   def handle_call(:size, _from, state), do: {:reply, state.size, state}
   def handle_call(:paused?, _from, state), do: {:reply, state.paused, state}
 
+  def handle_call({:set_max_size, max_size}, _from, state) do
+    {:reply, :ok, %{state | max_size: max_size}}
+  end
+
   def handle_call(:stats, _from, state) do
     stats = %{
       size: state.size,
@@ -198,7 +213,8 @@ defmodule SCR.TaskQueue do
       | high: :queue.new(),
         normal: :queue.new(),
         low: :queue.new(),
-        size: 0
+        size: 0,
+        class_served_counts: %{}
     }
 
     next_state = persist_clear(next_state)
@@ -228,7 +244,8 @@ defmodule SCR.TaskQueue do
       | high: :queue.new(),
         normal: :queue.new(),
         low: :queue.new(),
-        size: 0
+        size: 0,
+        class_served_counts: %{}
     }
 
     next_state = persist_clear(next_state)
@@ -245,26 +262,89 @@ defmodule SCR.TaskQueue do
   def terminate(_reason, _state), do: :ok
 
   defp pop_next(state) do
-    with :empty <- out_queue(:high, state),
-         :empty <- out_queue(:normal, state),
-         :empty <- out_queue(:low, state) do
+    with :empty <- out_queue(:high, state, state.fairness_enabled),
+         :empty <- out_queue(:normal, state, state.fairness_enabled),
+         :empty <- out_queue(:low, state, state.fairness_enabled) do
       :empty
     end
   end
 
-  defp out_queue(priority, state) do
+  defp out_queue(priority, state, false) do
     case :queue.out(Map.fetch!(state, priority)) do
       {{:value, item}, rest} ->
+        task_class = task_class(item.task)
+
         next_state =
           state
           |> Map.put(priority, rest)
           |> decrement_size()
+          |> increment_served(task_class)
 
+        emit_fairness_event(priority, task_class, :fifo)
         {:ok, item, priority, next_state}
 
       {:empty, _} ->
         :empty
     end
+  end
+
+  defp out_queue(priority, state, true) do
+    queue = Map.fetch!(state, priority)
+    items = :queue.to_list(queue)
+
+    case items do
+      [] ->
+        :empty
+
+      _ ->
+        {selected_idx, selected_item, selected_class} =
+          pick_fair_item(items, state.class_served_counts, state.fairness_weights)
+
+        rebuilt =
+          items
+          |> List.delete_at(selected_idx)
+          |> :queue.from_list()
+
+        next_state =
+          state
+          |> Map.put(priority, rebuilt)
+          |> decrement_size()
+          |> increment_served(selected_class)
+
+        emit_fairness_event(priority, selected_class, :weighted_pick)
+        {:ok, selected_item, priority, next_state}
+    end
+  end
+
+  defp pick_fair_item(items, served_counts, class_weights) do
+    class_stats =
+      items
+      |> Enum.with_index()
+      |> Enum.reduce(%{}, fn {%{task: task}, idx}, acc ->
+        klass = task_class(task)
+        served = Map.get(served_counts, klass, 0)
+        weight = class_weight(klass, class_weights)
+        score = served / max(weight, 1.0)
+
+        case Map.get(acc, klass) do
+          nil ->
+            Map.put(acc, klass, %{first_idx: idx, score: score})
+
+          existing ->
+            if idx < existing.first_idx do
+              Map.put(acc, klass, %{existing | first_idx: idx})
+            else
+              acc
+            end
+        end
+      end)
+
+    {selected_class, %{first_idx: selected_idx}} =
+      class_stats
+      |> Enum.min_by(fn {_klass, data} -> {data.score, data.first_idx} end)
+
+    selected_item = Enum.at(items, selected_idx)
+    {selected_idx, selected_item, selected_class}
   end
 
   defp increment_size(state) do
@@ -281,6 +361,33 @@ defmodule SCR.TaskQueue do
       %{task: task} -> task
       other -> other
     end)
+  end
+
+  defp increment_served(state, task_class) do
+    served = Map.get(state.class_served_counts, task_class, 0) + 1
+    %{state | class_served_counts: Map.put(state.class_served_counts, task_class, served)}
+  end
+
+  defp task_class(task) when is_map(task) do
+    Map.get(task, :workload_class) ||
+      Map.get(task, "workload_class") ||
+      Map.get(task, :agent_type) ||
+      Map.get(task, "agent_type") ||
+      Map.get(task, :type) ||
+      Map.get(task, "type") ||
+      "default"
+  end
+
+  defp task_class(_), do: "default"
+
+  defp class_weight(task_class, class_weights) when is_map(class_weights) do
+    value = Map.get(class_weights, task_class) || Map.get(class_weights, to_string(task_class))
+
+    case value do
+      n when is_integer(n) and n > 0 -> n * 1.0
+      n when is_float(n) and n > 0 -> n
+      _ -> 1.0
+    end
   end
 
   defp queue_to_list(queue) do
@@ -306,14 +413,25 @@ defmodule SCR.TaskQueue do
   end
 
   defp emit_dequeue_event(priority, result, queue_size, task) do
+    task_class = task_class(task)
+
     :telemetry.execute(
       [:scr, :task_queue, :dequeue],
       %{count: 1, queue_size: queue_size},
       %{
         priority: priority,
         result: result,
-        task_type: Map.get(task, :type, "unknown")
+        task_type: Map.get(task, :type, "unknown"),
+        task_class: task_class
       }
+    )
+  end
+
+  defp emit_fairness_event(priority, task_class, reason) do
+    :telemetry.execute(
+      [:scr, :task_queue, :fairness],
+      %{count: 1},
+      %{priority: priority, task_class: task_class, reason: reason}
     )
   end
 

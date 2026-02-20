@@ -110,7 +110,16 @@ SCR.LLM.Client.chat([
 
 # Check availability
 SCR.LLM.Client.ping()
+
+# Inspect failover policy/circuit state
+SCR.LLM.Client.failover_state()
 ```
+
+Failover policy controls:
+- `failover_mode`: `:fail_closed` (default) or `:fail_open`
+- `failover_retry_budget`: `%{max_retries, window_ms}` style keyword list
+- `failover_fail_open_provider`: provider used for fail-open fallback attempts
+- `failover_cooldown_ms`: circuit-open window per failing provider
 
 ## Agent LLM Integration
 
@@ -242,8 +251,13 @@ mix run -e "SCR.CLI.Demo.main([])"
 
 ## Future Enhancements
 
-- [ ] Streaming responses
-- [ ] Token counting and limits
-- [ ] Caching layer
-- [ ] More provider adapters
-- [ ] Vector embeddings for memory
+The current roadmap cycle is complete. New enhancement candidates should be tracked in:
+
+- `docs/roadmap/FUTURE_TODO.md`
+
+Potential next-wave ideas:
+
+- Enhanced streaming UX for long-running responses
+- Cross-provider benchmarking automation
+- Deeper token budget governance policies
+- Retrieval memory extensions for long-horizon agent tasks

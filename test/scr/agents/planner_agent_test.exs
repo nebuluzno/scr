@@ -12,15 +12,17 @@ defmodule SCR.Agents.PlannerAgentTest do
 
   setup do
     original = Application.get_env(:scr, :task_queue, [])
+    original_distributed = Application.get_env(:scr, :distributed, [])
     server = :"planner_queue_test_#{System.unique_integer([:positive])}"
     {:ok, _pid} = start_supervised({TaskQueue, name: server, max_size: 1})
     Application.put_env(:scr, :task_queue, Keyword.put(original, :server, server))
 
     on_exit(fn ->
       Application.put_env(:scr, :task_queue, original)
+      Application.put_env(:scr, :distributed, original_distributed)
     end)
 
-    %{server: server}
+    %{server: server, original_distributed: original_distributed}
   end
 
   test "normalize_agent_type uses allowlist and defaults unknown to worker" do
@@ -55,5 +57,36 @@ defmodule SCR.Agents.PlannerAgentTest do
     stats = TaskQueue.stats(server)
     assert stats.size == 1
     assert stats.rejected == 1
+  end
+
+  test "task messages are throttled when cluster backpressure is active", %{
+    server: server,
+    original_distributed: original_distributed
+  } do
+    Application.put_env(
+      :scr,
+      :distributed,
+      Keyword.merge(original_distributed,
+        enabled: true,
+        backpressure: [
+          enabled: true,
+          cluster_saturation_threshold: 0.0,
+          max_node_utilization: 1.0
+        ]
+      )
+    )
+
+    {:ok, internal_state} = PlannerAgent.init(%{agent_id: "planner_test"})
+    msg = Message.task("web", "planner_test", %{task_id: "bp1", description: "throttle me"})
+
+    assert {:noreply, _} =
+             PlannerAgent.handle_message(msg, %{
+               agent_id: "planner_test",
+               agent_state: internal_state
+             })
+
+    stats = TaskQueue.stats(server)
+    assert stats.size == 0
+    assert stats.rejected == 0
   end
 end

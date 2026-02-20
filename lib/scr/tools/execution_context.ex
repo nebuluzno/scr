@@ -11,7 +11,8 @@ defmodule SCR.Tools.ExecutionContext do
     :parent_task_id,
     :subtask_id,
     :trace_id,
-    :source
+    :source,
+    :policy_profile
   ]
 
   @type mode :: :strict | :demo
@@ -23,7 +24,8 @@ defmodule SCR.Tools.ExecutionContext do
           parent_task_id: String.t() | nil,
           subtask_id: String.t() | nil,
           trace_id: String.t() | nil,
-          source: :native | :mcp | nil
+          source: :native | :mcp | nil,
+          policy_profile: :strict | :balanced | :research | nil
         }
 
   @doc """
@@ -40,7 +42,8 @@ defmodule SCR.Tools.ExecutionContext do
       parent_task_id: Map.get(attrs, :parent_task_id),
       subtask_id: Map.get(attrs, :subtask_id),
       trace_id: Map.get(attrs, :trace_id, UUID.uuid4()),
-      source: Map.get(attrs, :source)
+      source: Map.get(attrs, :source),
+      policy_profile: Map.get(attrs, :policy_profile)
     }
   end
 end

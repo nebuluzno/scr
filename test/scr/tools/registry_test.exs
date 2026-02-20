@@ -115,4 +115,18 @@ defmodule SCR.Tools.RegistryTest do
 
     assert duration_error >= 0
   end
+
+  test "records denied decisions in audit log with reason code" do
+    ctx = ExecutionContext.new(%{mode: :strict})
+
+    assert {:error, :tool_not_allowed} =
+             Registry.execute_tool("code_execution", %{"code" => "1 + 1"}, ctx)
+
+    decisions = SCR.Tools.AuditLog.recent(10)
+
+    assert Enum.any?(decisions, fn d ->
+             d.tool == "code_execution" and d.decision == :denied and
+               d.reason == :tool_not_allowed
+           end)
+  end
 end
