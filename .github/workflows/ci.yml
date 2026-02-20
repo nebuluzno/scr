@@ -63,7 +63,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.19.5"
-          otp-version: "28.0"
+          otp-version: "28.1"
 
       - name: Install Elixir dependencies for docs command smoke
         run: mix deps.get
@@ -96,7 +96,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.19.5"
-          otp-version: "28.0"
+          otp-version: "28.1"
 
       - name: Restore deps and build cache
         uses: actions/cache@v4
@@ -136,7 +136,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.19.5"
-          otp-version: "28.0"
+          otp-version: "28.1"
 
       - name: Restore deps and build cache
         uses: actions/cache@v4
@@ -189,7 +189,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.19.5"
-          otp-version: "28.0"
+          otp-version: "28.1"
 
       - name: Restore deps and build cache
         uses: actions/cache@v4
@@ -228,7 +228,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.19.5"
-          otp-version: "28.0"
+          otp-version: "28.1"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -325,7 +325,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.19.5"
-          otp-version: "28.0"
+          otp-version: "28.1"
 
       - name: Setup Node.js (for JS MCP servers)
         if: ${{ steps.mcp_guard.outputs.enabled == 'true' }}
