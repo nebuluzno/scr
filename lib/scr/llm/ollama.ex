@@ -1,21 +1,21 @@
 defmodule SCR.LLM.Ollama do
   @moduledoc """
   Ollama LLM adapter for local development.
-  
+
   This adapter connects to a local Ollama server for LLM inference.
   It's ideal for development and testing without API costs.
-  
+
   ## Configuration
-  
+
   The adapter can be configured via application environment:
-  
+
       config :scr, :llm,
         provider: :ollama,
         base_url: "http://localhost:11434",
         default_model: "llama2"
-  
+
   ## Usage
-  
+
       {:ok, response} = SCR.LLM.Ollama.chat([
         %{role: "system", content: "You are a helpful assistant"},
         %{role: "user", content: "What is Elixir?"}
@@ -73,15 +73,16 @@ defmodule SCR.LLM.Ollama do
     }
 
     case post("/api/generate", payload, options) do
-      {:ok, %{ "response" => response } = result} ->
-        {:ok, %{
-          content: response,
-          model: model,
-          finish_reason: "stop",
-          raw: result
-        }}
+      {:ok, %{"response" => response} = result} ->
+        {:ok,
+         %{
+           content: response,
+           model: model,
+           finish_reason: "stop",
+           raw: result
+         }}
 
-      {:ok, %{ "error" => error }} ->
+      {:ok, %{"error" => error}} ->
         {:error, %{type: :ollama_error, message: error}}
 
       error ->
@@ -97,10 +98,11 @@ defmodule SCR.LLM.Ollama do
     max_tokens = Keyword.get(options, :max_tokens, 2048)
 
     # Convert messages to Ollama format if needed
-    ollama_messages = Enum.map(messages, fn
-      %{role: role, content: content} -> %{role: role, content: content}
-      %{ "role" => role, "content" => content} -> %{role: role, content: content}
-    end)
+    ollama_messages =
+      Enum.map(messages, fn
+        %{role: role, content: content} -> %{role: role, content: content}
+        %{"role" => role, "content" => content} -> %{role: role, content: content}
+      end)
 
     payload = %{
       model: model,
@@ -113,19 +115,20 @@ defmodule SCR.LLM.Ollama do
     }
 
     case post("/api/chat", payload, options) do
-      {:ok, %{ "message" => %{ "content" => content } = message, "done" => done}} ->
-        {:ok, %{
-          content: content,
-          role: message["role"],
-          model: model,
-          finish_reason: if(done, do: "stop", else: nil),
-          raw: %{
-            message: message,
-            done: done
-          }
-        }}
+      {:ok, %{"message" => %{"content" => content} = message, "done" => done}} ->
+        {:ok,
+         %{
+           content: content,
+           role: message["role"],
+           model: model,
+           finish_reason: if(done, do: "stop", else: nil),
+           raw: %{
+             message: message,
+             done: done
+           }
+         }}
 
-      {:ok, %{ "error" => error }} ->
+      {:ok, %{"error" => error}} ->
         {:error, %{type: :ollama_error, message: error}}
 
       error ->
@@ -135,7 +138,7 @@ defmodule SCR.LLM.Ollama do
 
   @doc """
   Generate a chat completion with tool support.
-  
+
   Note: Ollama doesn't natively support function calling in the same way
   as OpenAI. This implementation adds tools to the system prompt and
   parses tool calls from the response.
@@ -144,38 +147,42 @@ defmodule SCR.LLM.Ollama do
   def chat_with_tools(messages, tool_definitions, options \\ []) do
     options = Behaviour.merge_options(options)
     _model = Keyword.get(options, :model, default_model())
-    
+
     # Convert tool definitions to a system prompt
     tools_prompt = build_tools_prompt(tool_definitions)
-    
+
     # Add tools instruction to messages
     enhanced_messages = add_tools_to_messages(messages, tools_prompt)
-    
+
     # Make the chat call
     chat(enhanced_messages, options)
   end
 
   defp build_tools_prompt(tool_definitions) do
     tools_json = Jason.encode!(tool_definitions)
+
     """
     You have access to the following tools:
-    
+
     #{tools_json}
-    
+
     When you need to use a tool, respond in JSON format:
     {"name": "tool_name", "arguments": {"param1": "value1"}}
-    
+
     Always use tools when appropriate rather than making up information.
     """
   end
 
   defp add_tools_to_messages(messages, tools_prompt) do
     # Find or add system message - handle both string and atom keys
-    case Enum.find_index(messages, &((Map.get(&1, "role") == "system") or (Map.get(&1, :role) == "system"))) do
+    case Enum.find_index(
+           messages,
+           &(Map.get(&1, "role") == "system" or Map.get(&1, :role) == "system")
+         ) do
       nil ->
         # No system message, add one
         [%{"role" => "system", "content" => tools_prompt} | messages]
-      
+
       idx ->
         # Update existing system message
         List.update_at(messages, idx, fn msg ->
@@ -187,18 +194,18 @@ defmodule SCR.LLM.Ollama do
 
   @doc """
   Stream a completion from a prompt, calling the callback for each chunk.
-  
+
   ## Parameters
     - prompt: String prompt for the LLM
     - callback: Function to call with each chunk of the response
     - options: Keyword list of options (model, temperature, max_tokens, etc.)
-  
+
   ## Returns
     - {:ok, final_response} on success (after all chunks received)
     - {:error, reason} on failure
-  
+
   ## Example
-  
+
       {:ok, result} = SCR.LLM.Ollama.stream(
         "Write a story",
         fn chunk -> IO.write(chunk) end,
@@ -225,7 +232,7 @@ defmodule SCR.LLM.Ollama do
     }
 
     url = base_url() <> "/api/generate"
-    
+
     headers = [
       {"Content-Type", "application/json"},
       {"Accept", "text/event-stream"}
@@ -258,27 +265,31 @@ defmodule SCR.LLM.Ollama do
           nil ->
             # Empty or non-data chunk, continue
             collect_stream_chunks(request_id, callback, acc, timeout)
+
           text when is_binary(text) ->
             # Call the callback with this chunk
             callback.(text)
             collect_stream_chunks(request_id, callback, acc <> text, timeout)
+
           :done ->
             # Stream complete
-            {:ok, %{
-              content: acc,
-              model: default_model(),
-              finish_reason: "stop",
-              streamed: true
-            }}
+            {:ok,
+             %{
+               content: acc,
+               model: default_model(),
+               finish_reason: "stop",
+               streamed: true
+             }}
         end
 
       {:stream, ^request_id, %HTTPoison.AsyncEnd{}} ->
-        {:ok, %{
-          content: acc,
-          model: default_model(),
-          finish_reason: "stop",
-          streamed: true
-        }}
+        {:ok,
+         %{
+           content: acc,
+           model: default_model(),
+           finish_reason: "stop",
+           streamed: true
+         }}
     after
       timeout ->
         {:error, %{type: :timeout, message: "Stream timed out after #{timeout}ms"}}
@@ -291,14 +302,20 @@ defmodule SCR.LLM.Ollama do
     |> String.split("\n")
     |> Enum.find_value(fn line ->
       case String.trim(line) do
-        "" -> nil
-        "data: [DONE]" -> :done
+        "" ->
+          nil
+
+        "data: [DONE]" ->
+          :done
+
         "data: " <> json_data ->
           case Jason.decode(json_data) do
             {:ok, %{"response" => response}} -> response
             _ -> nil
           end
-        _ -> nil
+
+        _ ->
+          nil
       end
     end)
   end
@@ -309,11 +326,12 @@ defmodule SCR.LLM.Ollama do
     model = Keyword.get(options, :model, default_model())
 
     # Handle both single string and list of strings
-    input = if is_list(text) do
-      text
-    else
-      [text]
-    end
+    input =
+      if is_list(text) do
+        text
+      else
+        [text]
+      end
 
     payload = %{
       model: model,
@@ -321,13 +339,14 @@ defmodule SCR.LLM.Ollama do
     }
 
     case post("/api/embeddings", payload, options) do
-      {:ok, %{ "embedding" => embedding }} ->
-        {:ok, %{
-          embedding: embedding,
-          model: model
-        }}
+      {:ok, %{"embedding" => embedding}} ->
+        {:ok,
+         %{
+           embedding: embedding,
+           model: model
+         }}
 
-      {:ok, %{ "error" => error }} ->
+      {:ok, %{"error" => error}} ->
         {:error, %{type: :ollama_error, message: error}}
 
       error ->
@@ -339,14 +358,19 @@ defmodule SCR.LLM.Ollama do
   def ping do
     case get("/") do
       {:ok, %{"version" => version}} ->
-        {:ok, %{
-          status: "available",
-          version: version,
-          provider: :ollama
-        }}
+        {:ok,
+         %{
+           status: "available",
+           version: version,
+           provider: :ollama
+         }}
 
       {:error, %{type: :http_error, reason: :econnrefused}} ->
-        {:error, %{type: :connection_error, message: "Ollama server not running. Make sure 'ollama serve' is running."}}
+        {:error,
+         %{
+           type: :connection_error,
+           message: "Ollama server not running. Make sure 'ollama serve' is running."
+         }}
 
       error ->
         error
@@ -356,15 +380,17 @@ defmodule SCR.LLM.Ollama do
   @impl Behaviour
   def list_models do
     case get("/api/tags") do
-      {:ok, %{ "models" => models }} ->
-        formatted_models = Enum.map(models, fn m ->
-          %{
-            name: m["name"],
-            model: m["model"],
-            size: m["size"],
-            modified_at: m["modified_at"]
-          }
-        end)
+      {:ok, %{"models" => models}} ->
+        formatted_models =
+          Enum.map(models, fn m ->
+            %{
+              name: m["name"],
+              model: m["model"],
+              size: m["size"],
+              modified_at: m["modified_at"]
+            }
+          end)
+
         {:ok, formatted_models}
 
       error ->
@@ -398,8 +424,9 @@ defmodule SCR.LLM.Ollama do
 
       {:ok, %{status_code: status, body: body}} ->
         case Jason.decode(body) do
-          {:ok, %{ "error" => error }} ->
+          {:ok, %{"error" => error}} ->
             {:error, %{type: :http_error, status: status, message: error}}
+
           _ ->
             {:error, %{type: :http_error, status: status, message: "Unknown error"}}
         end
@@ -411,7 +438,9 @@ defmodule SCR.LLM.Ollama do
 
   defp get(endpoint) do
     url = base_url() <> endpoint
-    timeout = Application.get_env(:scr, :llm, [])
+
+    timeout =
+      Application.get_env(:scr, :llm, [])
       |> Keyword.get(:timeout, 30_000)
 
     headers = [

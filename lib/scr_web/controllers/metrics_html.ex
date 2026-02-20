@@ -1,7 +1,7 @@
 defmodule SCRWeb.MetricsHTML do
   use SCRWeb, :html
 
-  embed_templates "metrics_html/*"
+  embed_templates("metrics_html/*")
 
   def format_number(num) do
     num

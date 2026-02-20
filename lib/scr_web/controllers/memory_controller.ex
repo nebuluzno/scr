@@ -5,8 +5,8 @@ defmodule SCRWeb.MemoryController do
     # Handle case where MemoryAgent isn't started (ETS tables don't exist)
     tasks = safe_list_tasks()
     agents = safe_list_agents()
-    
-    render(conn, :index, 
+
+    render(conn, :index,
       tasks: tasks,
       agents: agents
     )

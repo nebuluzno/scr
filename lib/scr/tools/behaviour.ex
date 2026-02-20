@@ -1,7 +1,7 @@
 defmodule SCR.Tools.Behaviour do
   @moduledoc """
   Behaviour that defines the contract for SCR tools.
-  
+
   Tools are modules that agents can call to perform specific actions
   beyond text generation, such as making HTTP requests, calculations,
   or interacting with external services.
@@ -24,7 +24,7 @@ defmodule SCR.Tools.Behaviour do
 
   @doc """
   Executes the tool with the given parameters.
-  
+
   Returns `{:ok, result}` on success or `{:error, reason}` on failure.
   """
   @callback execute(params :: map()) :: {:ok, any()} | {:error, String.t()}

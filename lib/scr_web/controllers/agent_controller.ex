@@ -3,12 +3,14 @@ defmodule SCRWeb.AgentController do
 
   def index(conn, _params) do
     agents = SCR.Supervisor.list_agents()
-    agent_statuses = Enum.map(agents, fn agent_id ->
-      case SCR.Supervisor.get_agent_status(agent_id) do
-        {:ok, status} -> status
-        _ -> %{agent_id: agent_id, status: "unknown", agent_type: "unknown"}
-      end
-    end)
+
+    agent_statuses =
+      Enum.map(agents, fn agent_id ->
+        case SCR.Supervisor.get_agent_status(agent_id) do
+          {:ok, status} -> status
+          _ -> %{agent_id: agent_id, status: "unknown", agent_type: "unknown"}
+        end
+      end)
 
     render(conn, :index, agents: agent_statuses)
   end
@@ -17,6 +19,7 @@ defmodule SCRWeb.AgentController do
     case SCR.Supervisor.get_agent_status(agent_id) do
       {:ok, status} ->
         render(conn, :show, agent: status)
+
       {:error, :not_found} ->
         conn
         |> put_flash(:error, "Agent not found")

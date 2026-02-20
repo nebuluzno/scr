@@ -1,7 +1,7 @@
 defmodule SCR.Tools.Time do
   @moduledoc """
   Time tool for getting current time and date information.
-  
+
   Provides current time in various formats and timezones.
   """
 
@@ -38,22 +38,27 @@ defmodule SCR.Tools.Time do
   def execute(params) do
     format = Map.get(params, "format", "iso8601")
     timezone = Map.get(params, "timezone", "UTC")
-    
+
     now = DateTime.utc_now()
-    
-    result = case format do
-      "iso8601" ->
-        {:ok, format_iso8601(now, timezone)}
-      "unix" ->
-        {:ok, DateTime.to_unix(now)}
-      "rfc2822" ->
-        {:ok, format_rfc2822(now)}
-      "pretty" ->
-        {:ok, format_pretty(now, timezone)}
-      _ ->
-        {:ok, format_iso8601(now, timezone)}
-    end
-    
+
+    result =
+      case format do
+        "iso8601" ->
+          {:ok, format_iso8601(now, timezone)}
+
+        "unix" ->
+          {:ok, DateTime.to_unix(now)}
+
+        "rfc2822" ->
+          {:ok, format_rfc2822(now)}
+
+        "pretty" ->
+          {:ok, format_pretty(now, timezone)}
+
+        _ ->
+          {:ok, format_iso8601(now, timezone)}
+      end
+
     result
   rescue
     e -> {:error, "Time formatting error: #{inspect(e)}"}
@@ -62,7 +67,7 @@ defmodule SCR.Tools.Time do
   defp format_iso8601(datetime, "UTC") do
     DateTime.to_iso8601(datetime)
   end
-  
+
   defp format_iso8601(datetime, timezone) do
     case DateTime.shift_zone(datetime, timezone) do
       {:ok, shifted} -> DateTime.to_iso8601(shifted)
@@ -78,6 +83,7 @@ defmodule SCR.Tools.Time do
     case DateTime.shift_zone(datetime, timezone) do
       {:ok, shifted} ->
         Calendar.strftime(shifted, "%B %d, %Y at %I:%M %p %Z")
+
       {:error, _} ->
         Calendar.strftime(datetime, "%B %d, %Y at %I:%M %p UTC")
     end

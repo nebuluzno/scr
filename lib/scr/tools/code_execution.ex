@@ -1,7 +1,7 @@
 defmodule SCR.Tools.CodeExecution do
   @moduledoc """
   Code execution tool for running code snippets safely.
-  
+
   Supports Elixir code execution in a sandboxed environment.
   Results are returned as strings.
   """
@@ -43,7 +43,7 @@ defmodule SCR.Tools.CodeExecution do
   def execute(%{"code" => code} = params) do
     language = Map.get(params, "language", "elixir")
     timeout = min(Map.get(params, "timeout", 5000), 10_000)
-    
+
     case language do
       "elixir" -> execute_elixir(code, timeout)
       _ -> {:error, "Unsupported language: #{language}"}
@@ -61,15 +61,16 @@ defmodule SCR.Tools.CodeExecution do
     else
       try do
         # Execute with timeout
-        task = Task.async(fn ->
-          try do
-            {result, _binding} = Code.eval_string(code, [], __ENV__)
-            result
-          rescue
-            e -> {:error, "Execution error: #{Exception.message(e)}"}
-          end
-        end)
-        
+        task =
+          Task.async(fn ->
+            try do
+              {result, _binding} = Code.eval_string(code, [], __ENV__)
+              result
+            rescue
+              e -> {:error, "Execution error: #{Exception.message(e)}"}
+            end
+          end)
+
         case Task.yield(task, timeout) || Task.shutdown(task) do
           {:ok, {:error, _} = error} -> error
           {:ok, result} -> {:ok, format_result(result)}
@@ -97,15 +98,16 @@ defmodule SCR.Tools.CodeExecution do
       ~r/:os\.cmd/,
       ~r/:erlang\.open_port/,
       ~r/:erlang\.spawn/,
-      ~r/__ENV__\./,
+      ~r/__ENV__\./
     ]
-    
+
     Enum.any?(dangerous_patterns, &Regex.match?(&1, code))
   end
 
   defp format_result(result) when is_binary(result), do: result
   defp format_result(result) when is_number(result), do: result
   defp format_result(result) when is_atom(result), do: Atom.to_string(result)
+
   defp format_result(result) when is_list(result) do
     try do
       Enum.join(result, ", ")
@@ -113,6 +115,7 @@ defmodule SCR.Tools.CodeExecution do
       _ -> inspect(result)
     end
   end
+
   defp format_result(result) when is_map(result) do
     try do
       Jason.encode!(result)
@@ -120,6 +123,7 @@ defmodule SCR.Tools.CodeExecution do
       _ -> inspect(result)
     end
   end
+
   defp format_result(result), do: inspect(result)
 
   @impl true

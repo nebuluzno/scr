@@ -1,7 +1,7 @@
 defmodule SCR.Tools.Calculator do
   @moduledoc """
   Calculator tool for performing mathematical operations.
-  
+
   Supports basic arithmetic operations: addition, subtraction,
   multiplication, division, and exponentiation.
   """
@@ -48,26 +48,38 @@ defmodule SCR.Tools.Calculator do
   # Two-argument operations (add, subtract, multiply, divide, power, modulo)
   @impl true
   def execute(%{"operation" => op, "a" => a, "b" => b}) when is_number(a) and is_number(b) do
-    result = case op do
-      "add" -> a + b
-      "subtract" -> a - b
-      "multiply" -> a * b
-      "divide" -> 
-        if b == 0 do
-          {:error, "Cannot divide by zero"}
-        else
-          a / b
-        end
-      "power" -> :math.pow(a, b)
-      "modulo" -> 
-        if b == 0 do
-          {:error, "Cannot modulo by zero"}
-        else
-          rem(a, b)
-        end
-      _ -> {:error, "Unknown operation: #{op}"}
-    end
-    
+    result =
+      case op do
+        "add" ->
+          a + b
+
+        "subtract" ->
+          a - b
+
+        "multiply" ->
+          a * b
+
+        "divide" ->
+          if b == 0 do
+            {:error, "Cannot divide by zero"}
+          else
+            a / b
+          end
+
+        "power" ->
+          :math.pow(a, b)
+
+        "modulo" ->
+          if b == 0 do
+            {:error, "Cannot modulo by zero"}
+          else
+            rem(a, b)
+          end
+
+        _ ->
+          {:error, "Unknown operation: #{op}"}
+      end
+
     case result do
       {:error, _} -> result
       _ -> {:ok, result}

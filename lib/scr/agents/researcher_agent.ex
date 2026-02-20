@@ -1,7 +1,7 @@
 defmodule SCR.Agents.ResearcherAgent do
   @moduledoc """
   ResearcherAgent - Specialized agent for web research and information gathering.
-  
+
   Capabilities:
   - Web search and content extraction
   - Multi-source research aggregation
@@ -23,65 +23,72 @@ defmodule SCR.Agents.ResearcherAgent do
 
   def init(init_arg) do
     IO.puts("🔍 ResearcherAgent initialized")
-    
+
     agent_id = Map.get(init_arg, :agent_id, "researcher_1")
-    
-    {:ok, %{
-      agent_id: agent_id,
-      current_research: nil,
-      sources: [],
-      findings: [],
-      research_count: 0
-    }}
+
+    {:ok,
+     %{
+       agent_id: agent_id,
+       current_research: nil,
+       sources: [],
+       findings: [],
+       research_count: 0
+     }}
   end
 
   def handle_message(%Message{type: :task, payload: %{task: task_data}, from: from}, state) do
     IO.puts("🔍 ResearcherAgent received research task: #{inspect(task_data[:description])}")
-    
+
     internal_state = state.agent_state
-    
+
     description = Map.get(task_data, :description, "")
     task_id = Map.get(task_data, :task_id, UUID.uuid4())
     depth = Map.get(task_data, :depth, :standard)
-    
+
     # Perform research
     result = perform_research(description, depth)
-    
+
     # Send result back
-    result_msg = Message.result(state.agent_id, from, %{
-      task_id: task_id,
-      result: result,
-      status: :completed,
-      agent_type: :researcher
-    })
-    
+    result_msg =
+      Message.result(state.agent_id, from, %{
+        task_id: task_id,
+        result: result,
+        status: :completed,
+        agent_type: :researcher
+      })
+
     SCR.Supervisor.send_to_agent(from, result_msg)
-    
-    new_state = %{internal_state |
-      current_research: nil,
-      findings: result.findings ++ internal_state.findings,
-      sources: result.sources ++ internal_state.sources,
-      research_count: internal_state.research_count + 1
+
+    new_state = %{
+      internal_state
+      | current_research: nil,
+        findings: result.findings ++ internal_state.findings,
+        sources: result.sources ++ internal_state.sources,
+        research_count: internal_state.research_count + 1
     }
-    
+
     {:noreply, new_state}
   end
 
-  def handle_message(%Message{type: :research, payload: %{query: query, depth: depth}, from: from}, state) do
+  def handle_message(
+        %Message{type: :research, payload: %{query: query, depth: depth}, from: from},
+        state
+      ) do
     IO.puts("🔍 ResearcherAgent conducting research: #{query}")
-    
+
     internal_state = state.agent_state
-    
+
     result = perform_research(query, depth)
-    
-    result_msg = Message.result(state.agent_id, from, %{
-      query: query,
-      result: result,
-      status: :completed
-    })
-    
+
+    result_msg =
+      Message.result(state.agent_id, from, %{
+        query: query,
+        result: result,
+        status: :completed
+      })
+
     SCR.Supervisor.send_to_agent(from, result_msg)
-    
+
     {:noreply, internal_state}
   end
 
@@ -107,19 +114,19 @@ defmodule SCR.Agents.ResearcherAgent do
   defp perform_research(query, depth) do
     # Get research tools
     tools = get_research_tools()
-    
+
     # Build research prompt
     prompt = build_research_prompt(query, depth)
-    
+
     # Use LLM with tools for research
     case Client.chat_with_tools(
-      [%{role: "user", content: prompt}],
-      tools,
-      model: "llama2"
-    ) do
+           [%{role: "user", content: prompt}],
+           tools,
+           model: "llama2"
+         ) do
       {:ok, response} ->
         process_research_response(response, query)
-      
+
       {:error, _reason} ->
         # Fallback to basic research
         fallback_research(query)
@@ -129,7 +136,7 @@ defmodule SCR.Agents.ResearcherAgent do
   defp get_research_tools do
     # Get tool definitions for research
     tool_names = ["search", "http_request", "time"]
-    
+
     Enum.flat_map(tool_names, fn name ->
       case Registry.get_tool(name) do
         {:ok, module} -> [apply(module, :to_openai_format, [])]
@@ -139,25 +146,31 @@ defmodule SCR.Agents.ResearcherAgent do
   end
 
   defp build_research_prompt(query, depth) do
-    depth_instruction = case depth do
-      :quick -> "Provide a quick overview with 2-3 key points."
-      :standard -> "Provide a comprehensive overview with multiple sources."
-      :deep -> "Conduct thorough research with extensive sources, analysis, and cross-references."
-    end
-    
+    depth_instruction =
+      case depth do
+        :quick ->
+          "Provide a quick overview with 2-3 key points."
+
+        :standard ->
+          "Provide a comprehensive overview with multiple sources."
+
+        :deep ->
+          "Conduct thorough research with extensive sources, analysis, and cross-references."
+      end
+
     """
     You are a research specialist. Conduct research on the following topic:
-    
+
     Topic: #{query}
-    
+
     Instructions:
     #{depth_instruction}
-    
+
     Use available tools to:
     1. Search for relevant information
     2. Fetch content from promising sources
     3. Verify facts across multiple sources when possible
-    
+
     Provide your findings in a structured format with:
     - Summary
     - Key findings (bullet points)
@@ -167,9 +180,10 @@ defmodule SCR.Agents.ResearcherAgent do
   end
 
   defp process_research_response(response, query) do
-    content = get_in(response, [:message, :content]) ||
-              get_in(response, ["message", "content"]) || ""
-    
+    content =
+      get_in(response, [:message, :content]) ||
+        get_in(response, ["message", "content"]) || ""
+
     %{
       query: query,
       summary: extract_summary(content),

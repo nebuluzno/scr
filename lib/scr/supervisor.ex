@@ -1,7 +1,7 @@
 defmodule SCR.Supervisor do
   @moduledoc """
   Main supervisor for the SCR runtime.
-  
+
   Manages:
   - Agent registry
   - Agent lifecycle (start, stop, restart)
@@ -12,14 +12,14 @@ defmodule SCR.Supervisor do
   use DynamicSupervisor
   alias SCR.Agent
 
-#  @max_restart_attempts 3  # Reserved for future use
+  #  @max_restart_attempts 3  # Reserved for future use
 
   def start_link(init_arg) do
     IO.puts("🚀 Starting SCR Supervisor...")
-    
+
     # Start the registry
     Registry.start_link(keys: :unique, name: SCR.AgentRegistry)
-    
+
     # Start dynamic supervisor
     DynamicSupervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
   end
@@ -34,16 +34,16 @@ defmodule SCR.Supervisor do
   """
   def start_agent(agent_id, agent_type, module, init_arg \\ %{}) do
     spec = {Agent, {agent_id, agent_type, module, init_arg}}
-    
+
     case DynamicSupervisor.start_child(__MODULE__, spec) do
       {:ok, pid} ->
         IO.puts("✓ Started #{agent_type} agent: #{agent_id}")
         {:ok, pid}
-      
+
       {:error, {:already_started, _pid}} ->
         IO.puts("⚠️ Agent #{agent_id} already running")
         {:error, :already_started}
-      
+
       {:error, reason} ->
         IO.puts("✗ Failed to start agent #{agent_id}: #{reason}")
         {:error, reason}
@@ -60,7 +60,7 @@ defmodule SCR.Supervisor do
         DynamicSupervisor.terminate_child(__MODULE__, pid)
         IO.puts("✓ Stopped agent: #{agent_id}")
         :ok
-      
+
       [] ->
         {:error, :not_found}
     end
@@ -82,7 +82,7 @@ defmodule SCR.Supervisor do
   def list_agents do
     DynamicSupervisor.which_children(__MODULE__)
     |> Enum.map(fn {_, pid, _, _} -> pid end)
-    |> Enum.map(fn pid -> 
+    |> Enum.map(fn pid ->
       case Registry.keys(SCR.AgentRegistry, pid) do
         [agent_id] -> agent_id
         _ -> nil
@@ -99,7 +99,7 @@ defmodule SCR.Supervisor do
       {:ok, _pid} ->
         Agent.send_message(agent_id, message)
         :ok
-      
+
       {:error, :not_found} ->
         {:error, :agent_not_found}
     end
@@ -112,7 +112,7 @@ defmodule SCR.Supervisor do
     case get_agent_pid(agent_id) do
       {:ok, _pid} ->
         {:ok, Agent.get_status(agent_id)}
-      
+
       {:error, :not_found} ->
         {:error, :not_found}
     end
@@ -126,7 +126,7 @@ defmodule SCR.Supervisor do
       {:ok, _pid} ->
         Agent.crash(agent_id)
         :ok
-      
+
       {:error, :not_found} ->
         {:error, :not_found}
     end
@@ -138,14 +138,14 @@ defmodule SCR.Supervisor do
   def restart_agent(agent_id, agent_type, module, init_arg \\ %{}) do
     # Wait a bit for the old process to fully terminate
     Process.sleep(100)
-    
+
     # Clean up registry entry if it exists
     try do
       Registry.unregister(SCR.AgentRegistry, agent_id)
     rescue
       _ -> :ok
     end
-    
+
     IO.puts("🔄 Restarting agent: #{agent_id}")
     start_agent(agent_id, agent_type, module, init_arg)
   end

@@ -1,12 +1,13 @@
 defmodule SCR.Message do
   @moduledoc """
   Structured message protocol for inter-agent communication.
-  
+
   Messages are tuples with the following structure:
   {type, from, to, payload, timestamp, message_id}
   """
 
-  @type message_type :: :task | :result | :critique | :spawn | :status | :ping | :pong | :stop | :error
+  @type message_type ::
+          :task | :result | :critique | :spawn | :status | :ping | :pong | :stop | :error
   @type agent_id :: String.t()
   @type payload :: map()
 

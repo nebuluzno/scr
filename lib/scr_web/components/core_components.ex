@@ -1,8 +1,8 @@
 defmodule SCRWeb.CoreComponents do
   use Phoenix.Component
 
-  attr :title, :string, required: true
-  attr :rest, :global
+  attr(:title, :string, required: true)
+  attr(:rest, :global)
 
   def header(assigns) do
     ~H"""
@@ -14,9 +14,9 @@ defmodule SCRWeb.CoreComponents do
     """
   end
 
-  attr :href, :string, required: true
-  attr :class, :string, default: ""
-  slot :inner_block, required: true
+  attr(:href, :string, required: true)
+  attr(:class, :string, default: "")
+  slot(:inner_block, required: true)
 
   def link(assigns) do
     ~H"""
@@ -24,7 +24,7 @@ defmodule SCRWeb.CoreComponents do
     """
   end
 
-  slot :inner_block, required: true
+  slot(:inner_block, required: true)
 
   def card(assigns) do
     ~H"""

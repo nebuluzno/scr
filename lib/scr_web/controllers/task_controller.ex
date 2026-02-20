@@ -12,7 +12,7 @@ defmodule SCRWeb.TaskController do
 
   def create(conn, %{"task" => task_params}) do
     description = Map.get(task_params, "description", "")
-    
+
     if description == "" do
       conn
       |> put_flash(:error, "Task description cannot be empty")
@@ -20,29 +20,30 @@ defmodule SCRWeb.TaskController do
     else
       # Generate a task ID
       task_id = UUID.uuid4()
-      
+
       # Ensure MemoryAgent is running (ignore if already started)
       case SCR.Supervisor.start_agent("memory_1", :memory, SCR.Agents.MemoryAgent, %{}) do
         {:ok, _} -> :ok
         {:error, :already_started} -> :ok
         {:error, {:already_started, _}} -> :ok
       end
-      
+
       # Ensure PlannerAgent is running (ignore if already started)
       case SCR.Supervisor.start_agent("planner_1", :planner, SCR.Agents.PlannerAgent, %{}) do
         {:ok, _} -> :ok
         {:error, :already_started} -> :ok
         {:error, {:already_started, _}} -> :ok
       end
-      
+
       # Send the task to PlannerAgent
-      task_msg = SCR.Message.task("web", "planner_1", %{
-        task_id: task_id,
-        description: description
-      })
-      
+      task_msg =
+        SCR.Message.task("web", "planner_1", %{
+          task_id: task_id,
+          description: description
+        })
+
       SCR.Supervisor.send_to_agent("planner_1", task_msg)
-      
+
       conn
       |> put_flash(:info, "Task submitted successfully!")
       |> redirect(to: ~p"/tasks")

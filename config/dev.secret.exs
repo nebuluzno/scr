@@ -16,5 +16,4 @@ config :scr, SCR.Repo,
 secret_key_base =
   "development_secret_key_at_least_64_bytes_long_for_phoenix_security_12345678"
 
-config :scr, SCRWeb.Endpoint,
-  secret_key_base: secret_key_base
+config :scr, SCRWeb.Endpoint, secret_key_base: secret_key_base

@@ -1,7 +1,7 @@
 defmodule SCR.CLI.Demo do
   @moduledoc """
   CLI Demo for the Supervised Cognitive Runtime.
-  
+
   Demonstrates:
   - Multi-agent coordination
   - Task decomposition
@@ -53,9 +53,9 @@ defmodule SCR.CLI.Demo do
     # Reset metrics for fresh demo
     SCR.LLM.Metrics.reset()
     SCR.LLM.Cache.clear()
-    
+
     IO.puts("LLM Cache & Metrics initialized")
-    
+
     # Start MemoryAgent first (other agents will store data here)
     IO.puts("1️⃣ Starting MemoryAgent...")
     {:ok, _} = Supervisor.start_agent("memory_1", :memory, MemoryAgent, %{})
@@ -73,12 +73,13 @@ defmodule SCR.CLI.Demo do
 
     # Send the main task to PlannerAgent
     IO.puts("\n4️⃣ Sending main task to PlannerAgent...\n")
-    
-    task_msg = Message.task("cli", "planner_1", %{
-      task_id: UUID.uuid4(),
-      description: "Research AI agent runtimes and produce structured output"
-    })
-    
+
+    task_msg =
+      Message.task("cli", "planner_1", %{
+        task_id: UUID.uuid4(),
+        description: "Research AI agent runtimes and produce structured output"
+      })
+
     Supervisor.send_to_agent("planner_1", task_msg)
 
     # Wait for task to complete - increased time for LLM calls
@@ -87,7 +88,7 @@ defmodule SCR.CLI.Demo do
 
     # Show LLM stats
     show_llm_stats()
-    
+
     # Show final status
     show_system_status()
   end
@@ -107,11 +108,14 @@ defmodule SCR.CLI.Demo do
 
     # Send a task to the worker
     IO.puts("3️⃣ Sending task to WorkerAgent...")
-    task_msg = Message.task("cli", "worker_test", %{
-      task_id: "test_1",
-      type: :research,
-      description: "Test task for crash recovery"
-    })
+
+    task_msg =
+      Message.task("cli", "worker_test", %{
+        task_id: "test_1",
+        type: :research,
+        description: "Test task for crash recovery"
+      })
+
     Supervisor.send_to_agent("worker_test", task_msg)
     Process.sleep(1500)
 
@@ -126,24 +130,32 @@ defmodule SCR.CLI.Demo do
 
     # Restart the worker (simulating supervisor recovery)
     IO.puts("\n6️⃣ 🔄 Supervisor restarting crashed worker...")
+
     case Supervisor.restart_agent("worker_test", :worker, WorkerAgent, %{}) do
-      {:ok, _} -> :ok
-      {:error, :already_started} -> 
+      {:ok, _} ->
+        :ok
+
+      {:error, :already_started} ->
         IO.puts("⚠️ Worker already running after crash")
         :ok
-      error -> 
+
+      error ->
         IO.puts("Failed to restart: #{inspect(error)}")
         :ok
     end
+
     Process.sleep(500)
 
     # Send a new task to verify recovery
     IO.puts("\n7️⃣ Sending new task to restarted worker...")
-    task_msg = Message.task("cli", "worker_test", %{
-      task_id: "test_2",
-      type: :research,
-      description: "Test task after crash recovery"
-    })
+
+    task_msg =
+      Message.task("cli", "worker_test", %{
+        task_id: "test_2",
+        type: :research,
+        description: "Test task after crash recovery"
+      })
+
     Supervisor.send_to_agent("worker_test", task_msg)
     Process.sleep(1500)
 
@@ -157,11 +169,12 @@ defmodule SCR.CLI.Demo do
 
     agents = Supervisor.list_agents()
     IO.puts("\nActive agents: #{length(agents)}")
-    
+
     Enum.each(agents, fn agent_id ->
       case Supervisor.get_agent_status(agent_id) do
         {:ok, status} ->
           IO.puts("  • #{agent_id} (#{status.agent_type}) - #{status.status}")
+
         _ ->
           IO.puts("  • #{agent_id} - status unavailable")
       end
@@ -176,7 +189,7 @@ defmodule SCR.CLI.Demo do
     IO.puts("\n" <> String.duplicate("=", 60))
     IO.puts("🤖 LLM Statistics")
     IO.puts(String.duplicate("=", 60))
-    
+
     # Cache stats
     cache_stats = SCR.LLM.Cache.stats()
     IO.puts("\n💾 Cache:")
@@ -184,7 +197,7 @@ defmodule SCR.CLI.Demo do
     IO.puts("  Hits: #{cache_stats.hits}")
     IO.puts("  Misses: #{cache_stats.misses}")
     IO.puts("  Cached responses: #{cache_stats.size}")
-    
+
     # Metrics stats
     metrics_stats = SCR.LLM.Metrics.stats()
     IO.puts("\n📈 Token Usage:")
@@ -192,11 +205,15 @@ defmodule SCR.CLI.Demo do
     IO.puts("  Prompt tokens: #{metrics_stats.total_prompt_tokens}")
     IO.puts("  Completion tokens: #{metrics_stats.total_completion_tokens}")
     IO.puts("  Total tokens: #{metrics_stats.total_tokens}")
-    IO.puts("  Total cost: $#{:erlang.float_to_binary(metrics_stats.total_cost, [{:decimals, 6}])} USD")
-    
+
+    IO.puts(
+      "  Total cost: $#{:erlang.float_to_binary(metrics_stats.total_cost, [{:decimals, 6}])} USD"
+    )
+
     # Model breakdown
     if map_size(metrics_stats.by_model) > 0 do
       IO.puts("\n📊 By Model:")
+
       Enum.each(metrics_stats.by_model, fn {model, stats} ->
         IO.puts("  #{model}:")
         IO.puts("    Calls: #{stats.calls}")

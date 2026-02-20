@@ -1,12 +1,12 @@
 defmodule SCR.LLM.Cache do
   @moduledoc """
   LLM Response Cache using ETS.
-  
+
   Caches LLM responses to improve performance and reduce API calls.
   Uses content hashing for cache keys to ensure cache hits for identical prompts.
-  
+
   ## Usage
-  
+
       # Enable caching globally
       SCR.LLM.Cache.enable()
       
@@ -29,7 +29,8 @@ defmodule SCR.LLM.Cache do
 
   # Cache configuration
   @cache_table :scr_llm_cache
-  @default_ttl 3600 * 1000  # 1 hour in milliseconds
+  # 1 hour in milliseconds
+  @default_ttl 3600 * 1000
   @max_entries 1000
 
   # Client API
@@ -69,12 +70,13 @@ defmodule SCR.LLM.Cache do
   def get(prompt, options \\ []) do
     if enabled?() do
       key = cache_key(prompt, options)
+
       case :ets.lookup(@cache_table, key) do
         [{^key, value, timestamp}] ->
           # Check if entry has expired
           ttl = Keyword.get(options, :cache_ttl, @default_ttl)
           age = :erlang.system_time(:millisecond) - timestamp
-          
+
           if age < ttl do
             Logger.debug("[LLM Cache] Cache hit for key: #{String.slice(key, 0, 20)}...")
             GenServer.cast(__MODULE__, :increment_hits)
@@ -84,7 +86,7 @@ defmodule SCR.LLM.Cache do
             :ets.delete(@cache_table, key)
             {:miss, :expired}
           end
-        
+
         [] ->
           {:miss, :not_found}
       end
@@ -100,15 +102,15 @@ defmodule SCR.LLM.Cache do
     if enabled?() do
       key = cache_key(prompt, options)
       timestamp = :erlang.system_time(:millisecond)
-      
+
       # Check if we need to evict old entries
       :ets.insert(@cache_table, {key, response, timestamp})
-      
+
       # Cleanup if table is too large
       if :ets.info(@cache_table, :size) > @max_entries do
         GenServer.cast(__MODULE__, :cleanup)
       end
-      
+
       Logger.debug("[LLM Cache] Cached response for key: #{String.slice(key, 0, 20)}...")
       :ok
     else
@@ -140,7 +142,7 @@ defmodule SCR.LLM.Cache do
       Keyword.get(options, :temperature, 0.7),
       Keyword.get(options, :max_tokens, 2048)
     ]
-    
+
     content = "#{prompt}|#{inspect(relevant_opts)}"
     :crypto.hash(:sha256, content) |> Base.encode16()
   end
@@ -203,18 +205,18 @@ defmodule SCR.LLM.Cache do
     entries = :ets.tab2list(@cache_table)
     count = length(entries)
     to_delete = div(count, 10)
-    
+
     if to_delete > 0 do
       sorted = Enum.sort_by(entries, fn {_, _, ts} -> ts end)
       to_remove = Enum.take(sorted, to_delete)
-      
+
       Enum.each(to_remove, fn {key, _, _} ->
         :ets.delete(@cache_table, key)
       end)
-      
+
       Logger.info("[LLM Cache] Cleaned up #{to_delete} old entries")
     end
-    
+
     {:noreply, state}
   end
 
@@ -232,6 +234,7 @@ defmodule SCR.LLM.Cache do
       size: :ets.info(@cache_table, :size),
       max_entries: @max_entries
     }
+
     {:reply, stats, state}
   end
 end

@@ -1,7 +1,7 @@
 defmodule SCR.Agents.CriticAgent do
   @moduledoc """
   CriticAgent - Evaluates worker outputs and provides feedback.
-  
+
   Uses LLM to review task results and can request revisions if quality
   doesn't meet standards. Falls back to rule-based evaluation if LLM unavailable.
   """
@@ -21,72 +21,71 @@ defmodule SCR.Agents.CriticAgent do
 
   def init(init_arg) do
     IO.puts("📝 CriticAgent initialized")
-    
+
     agent_id = Map.get(init_arg, :agent_id, "critic_1")
-    
-    {:ok, %{
-      agent_id: agent_id,
-      evaluations: [],
-      revision_requests: []
-    }}
+
+    {:ok,
+     %{
+       agent_id: agent_id,
+       evaluations: [],
+       revision_requests: []
+     }}
   end
 
   def handle_message(%Message{type: :task, payload: %{task: task_data}, from: from}, state) do
     IO.puts("📝 CriticAgent evaluating task: #{inspect(task_data[:description])}")
-    
+
     # Get internal state from context
     internal_state = state.agent_state
-    
+
     task_id = Map.get(task_data, :task_id, UUID.uuid4())
     result_data = Map.get(task_data, :result)
-    
+
     # Evaluate the result
     evaluation = evaluate_result(result_data, task_id)
-    
+
     # Send evaluation back
-    critique_msg = Message.critique(state.agent_id, from, %{
-      task_id: task_id,
-      evaluation: evaluation,
-      quality_score: evaluation.score,
-      feedback: evaluation.feedback,
-      revision_requested: evaluation.score < @quality_threshold
-    })
-    
+    critique_msg =
+      Message.critique(state.agent_id, from, %{
+        task_id: task_id,
+        evaluation: evaluation,
+        quality_score: evaluation.score,
+        feedback: evaluation.feedback,
+        revision_requested: evaluation.score < @quality_threshold
+      })
+
     SCR.Supervisor.send_to_agent(from, critique_msg)
-    
-    new_state = %{internal_state |
-      evaluations: [evaluation | internal_state.evaluations]
-    }
-    
+
+    new_state = %{internal_state | evaluations: [evaluation | internal_state.evaluations]}
+
     {:noreply, new_state}
   end
 
   def handle_message(%Message{type: :result, payload: %{result: result_data}, from: from}, state) do
     IO.puts("📝 CriticAgent reviewing result")
-    
+
     # Get internal state from context
     internal_state = state.agent_state
-    
+
     task_id = Map.get(result_data, :task_id, UUID.uuid4())
-    
+
     # Evaluate the result using LLM
     evaluation = evaluate_with_llm(result_data, task_id)
-    
+
     # Send critique back to planner
-    critique_msg = Message.critique(state.agent_id, from, %{
-      task_id: task_id,
-      evaluation: evaluation,
-      quality_score: evaluation.score,
-      feedback: evaluation.feedback,
-      revision_requested: evaluation.score < @quality_threshold
-    })
-    
+    critique_msg =
+      Message.critique(state.agent_id, from, %{
+        task_id: task_id,
+        evaluation: evaluation,
+        quality_score: evaluation.score,
+        feedback: evaluation.feedback,
+        revision_requested: evaluation.score < @quality_threshold
+      })
+
     SCR.Supervisor.send_to_agent(from, critique_msg)
-    
-    new_state = %{internal_state |
-      evaluations: [evaluation | internal_state.evaluations]
-    }
-    
+
+    new_state = %{internal_state | evaluations: [evaluation | internal_state.evaluations]}
+
     {:noreply, new_state}
   end
 
@@ -114,16 +113,16 @@ defmodule SCR.Agents.CriticAgent do
 
   defp evaluate_with_llm(result_data, task_id) do
     IO.puts("🤖 Using LLM to evaluate result")
-    
+
     # Extract result content for evaluation
     result_content = format_result_for_evaluation(result_data)
-    
+
     prompt = """
     You are a quality assurance critic. Evaluate the following task result.
-    
+
     Result:
     #{result_content}
-    
+
     Provide your evaluation as a JSON object with this structure:
     {
       "score": 0.0-1.0,
@@ -132,14 +131,14 @@ defmodule SCR.Agents.CriticAgent do
       "weaknesses": ["weakness 1", "weakness 2"],
       "revision_needed": true/false
     }
-    
+
     Be critical but fair. Consider completeness, accuracy, and clarity.
     """
-    
+
     case Client.complete(prompt, temperature: 0.3, max_tokens: 1024) do
       {:ok, %{content: llm_response}} ->
         parse_llm_evaluation(llm_response, task_id)
-      
+
       {:error, reason} ->
         IO.puts("⚠️ LLM evaluation failed, using rule-based: #{inspect(reason)}")
         evaluate_result(result_data, task_id)
@@ -165,7 +164,7 @@ defmodule SCR.Agents.CriticAgent do
           revision_needed: Map.get(parsed, "revision_needed", false),
           source: :llm
         }
-      
+
       _ ->
         # Fall back to rule-based if JSON parsing fails
         evaluate_result(%{}, task_id)
@@ -188,34 +187,40 @@ defmodule SCR.Agents.CriticAgent do
 
   defp evaluate_result(result_data, task_id) do
     # Result can be either a single result or a map with :results array
-    results = case result_data do
-      %{results: rs} -> rs  # Array of results from planner
-      _ -> [result_data]     # Single result
-    end
-    
+    results =
+      case result_data do
+        # Array of results from planner
+        %{results: rs} -> rs
+        # Single result
+        _ -> [result_data]
+      end
+
     # Aggregate findings from all results
     all_results = Enum.map(results, fn r -> Map.get(r, :result, r) end)
-    
+
     has_findings = Enum.any?(all_results, fn r -> Map.has_key?(r, :findings) end)
     has_summary = Enum.any?(all_results, fn r -> Map.has_key?(r, :summary) end)
     has_output = Enum.any?(all_results, fn r -> Map.has_key?(r, :output) end)
-    
-    score = cond do
-      has_findings and has_summary -> 0.9
-      has_output and has_summary -> 0.85
-      has_summary -> 0.75
-      true -> 0.6
-    end
-    
-    strengths = []
-    |> maybe_add("Comprehensive research", has_findings)
-    |> maybe_add("Clear summary provided", has_summary)
-    |> maybe_add("Structured output", has_output)
-    
-    weaknesses = []
-    |> maybe_add("Missing detailed findings", not has_findings)
-    |> maybe_add("No structured output", not has_output)
-    
+
+    score =
+      cond do
+        has_findings and has_summary -> 0.9
+        has_output and has_summary -> 0.85
+        has_summary -> 0.75
+        true -> 0.6
+      end
+
+    strengths =
+      []
+      |> maybe_add("Comprehensive research", has_findings)
+      |> maybe_add("Clear summary provided", has_summary)
+      |> maybe_add("Structured output", has_output)
+
+    weaknesses =
+      []
+      |> maybe_add("Missing detailed findings", not has_findings)
+      |> maybe_add("No structured output", not has_output)
+
     %{
       task_id: task_id,
       score: score,

@@ -1,7 +1,7 @@
 defmodule SCR.Agent do
   @moduledoc """
   Base Agent behavior for all SCR agents.
-  
+
   Provides common functionality for:
   - Message handling
   - State management
@@ -25,12 +25,14 @@ defmodule SCR.Agent do
   @doc """
   Called when a message is received.
   """
-  @callback handle_message(message :: Message.t(), state :: state()) :: {:noreply, state()} | {:stop, reason :: term(), state()}
+  @callback handle_message(message :: Message.t(), state :: state()) ::
+              {:noreply, state()} | {:stop, reason :: term(), state()}
 
   @doc """
   Called periodically for heartbeat/health checks.
   """
-  @callback handle_heartbeat(state :: state()) :: {:noreply, state()} | {:stop, reason :: term(), state()}
+  @callback handle_heartbeat(state :: state()) ::
+              {:noreply, state()} | {:stop, reason :: term(), state()}
 
   @doc """
   Called when the agent is stopping.
@@ -88,14 +90,14 @@ defmodule SCR.Agent do
       {:ok, agent_state} ->
         full_state = Map.merge(initial_state, %{agent_state: agent_state, status: :running})
         schedule_heartbeat()
-        
+
         # Broadcast agent started
         broadcast_agent_event(:agent_started, %{
           agent_id: agent_id,
           agent_type: agent_type,
           status: :running
         })
-        
+
         {:ok, full_state}
 
       {:stop, reason} ->
@@ -106,10 +108,15 @@ defmodule SCR.Agent do
   def handle_cast({:deliver_message, message}, state) do
     # Pass a map with agent_id and agent_state to handle_message
     agent_context = %{agent_id: state.agent_id, agent_state: state.agent_state}
-    
+
     case state.module.handle_message(message, agent_context) do
       {:noreply, new_agent_state} ->
-        new_state = %{state | agent_state: new_agent_state, message_count: state.message_count + 1}
+        new_state = %{
+          state
+          | agent_state: new_agent_state,
+            message_count: state.message_count + 1
+        }
+
         {:noreply, new_state}
 
       {:stop, reason, new_agent_state} ->
@@ -135,16 +142,14 @@ defmodule SCR.Agent do
       message_count: state.message_count,
       last_heartbeat: state.last_heartbeat
     }
+
     {:reply, status, state}
   end
 
   def handle_info(:heartbeat, state) do
     case state.module.handle_heartbeat(state.agent_state) do
       {:noreply, new_agent_state} ->
-        new_state = %{state |
-          agent_state: new_agent_state,
-          last_heartbeat: DateTime.utc_now()
-        }
+        new_state = %{state | agent_state: new_agent_state, last_heartbeat: DateTime.utc_now()}
         schedule_heartbeat()
         {:noreply, new_state}
 
@@ -160,15 +165,15 @@ defmodule SCR.Agent do
 
   def terminate(reason, state) do
     IO.puts("🛑 Agent #{state.agent_id} terminating: #{reason}")
-    
+
     # Broadcast agent stopped
     broadcast_agent_event(:agent_stopped, state.agent_id)
-    
+
     state.module.terminate(reason, state.agent_state)
   end
 
   # Private helpers
-  
+
   defp broadcast_agent_event(event, data) do
     Phoenix.PubSub.broadcast(SCR.PubSub, "agents", {event, data})
   end
@@ -178,6 +183,7 @@ defmodule SCR.Agent do
   end
 
   defp schedule_heartbeat do
-    Process.send_after(self(), :heartbeat, 5000) # Heartbeat every 5 seconds
+    # Heartbeat every 5 seconds
+    Process.send_after(self(), :heartbeat, 5000)
   end
 end
