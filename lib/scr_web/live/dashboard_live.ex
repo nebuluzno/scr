@@ -18,6 +18,7 @@ defmodule SCRWeb.DashboardLive do
         agent_count: get_agent_count(),
         cache_stats: get_cache_stats(),
         metrics_stats: get_metrics_stats(),
+        queue_stats: get_queue_stats(),
         recent_tasks: get_recent_tasks(),
         tools: get_tools()
       )
@@ -31,7 +32,8 @@ defmodule SCRWeb.DashboardLive do
      assign(socket,
        agent_count: get_agent_count(),
        cache_stats: get_cache_stats(),
-       metrics_stats: get_metrics_stats()
+       metrics_stats: get_metrics_stats(),
+       queue_stats: get_queue_stats()
      )}
   end
 
@@ -60,12 +62,69 @@ defmodule SCRWeb.DashboardLive do
   @impl true
   def handle_info({:task_created, task}, socket) do
     tasks = [task | socket.assigns.recent_tasks] |> Enum.take(5)
-    {:noreply, assign(socket, recent_tasks: tasks)}
+    {:noreply, assign(socket, recent_tasks: tasks, queue_stats: get_queue_stats())}
   end
 
   @impl true
   def handle_info({:metrics_updated, _metrics}, socket) do
     {:noreply, assign(socket, metrics_stats: get_metrics_stats())}
+  end
+
+  @impl true
+  def handle_info({:queue_paused, _payload}, socket) do
+    {:noreply, assign(socket, queue_stats: get_queue_stats())}
+  end
+
+  @impl true
+  def handle_info({:queue_resumed, _payload}, socket) do
+    {:noreply, assign(socket, queue_stats: get_queue_stats())}
+  end
+
+  @impl true
+  def handle_info({:queue_drained, _payload}, socket) do
+    {:noreply, assign(socket, queue_stats: get_queue_stats())}
+  end
+
+  @impl true
+  def handle_event("pause_queue", _params, socket) do
+    :ok = SCR.TaskQueue.pause()
+
+    {:noreply,
+     socket |> assign(queue_stats: get_queue_stats()) |> put_flash(:info, "Queue paused")}
+  end
+
+  @impl true
+  def handle_event("resume_queue", _params, socket) do
+    :ok = SCR.TaskQueue.resume()
+
+    dispatch_msg = SCR.Message.status("dashboard", "planner_1", %{action: :dispatch_next})
+    _ = SCR.Supervisor.send_to_agent("planner_1", dispatch_msg)
+
+    {:noreply,
+     socket |> assign(queue_stats: get_queue_stats()) |> put_flash(:info, "Queue resumed")}
+  end
+
+  @impl true
+  def handle_event("clear_queue", _params, socket) do
+    :ok = SCR.TaskQueue.clear()
+
+    {:noreply,
+     socket |> assign(queue_stats: get_queue_stats()) |> put_flash(:info, "Queue cleared")}
+  end
+
+  @impl true
+  def handle_event("drain_queue", _params, socket) do
+    {:ok, drained_tasks} = SCR.TaskQueue.drain()
+
+    Enum.each(drained_tasks, fn task ->
+      task_id = Map.get(task, :task_id, "") |> to_string()
+      _ = SCR.AgentContext.set_status(task_id, :drained)
+    end)
+
+    {:noreply,
+     socket
+     |> assign(queue_stats: get_queue_stats())
+     |> put_flash(:info, "Queue drained (#{length(drained_tasks)} tasks)")}
   end
 
   @impl true
@@ -105,6 +164,12 @@ defmodule SCRWeb.DashboardLive do
             <div class="stat-icon">💰</div>
             <div class="stat-value" id="total-cost">$<%= :erlang.float_to_binary(@metrics_stats.total_cost, [{:decimals, 4}]) %></div>
             <div class="stat-label">Total Cost</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">📥</div>
+            <div class="stat-value" id="queue-size"><%= @queue_stats.size %></div>
+            <div class="stat-label">Queued Tasks</div>
           </div>
         </div>
         
@@ -156,6 +221,28 @@ defmodule SCRWeb.DashboardLive do
               </div>
             </div>
           </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">🧵 Queue Control</h3>
+            </div>
+            <div class="card-body">
+              <p>
+                Status:
+                <span class={"badge #{if @queue_stats.paused, do: "badge-warning", else: "badge-success"}"}>
+                  <%= if @queue_stats.paused, do: "Paused", else: "Running" %>
+                </span>
+              </p>
+              <p>High: <strong><%= @queue_stats.high %></strong> | Normal: <strong><%= @queue_stats.normal %></strong> | Low: <strong><%= @queue_stats.low %></strong></p>
+              <p>Rejected: <strong><%= @queue_stats.rejected %></strong></p>
+              <div class="actions-bar" style="margin-top: 1rem;">
+                <button class="btn btn-secondary btn-sm" phx-click="pause_queue" disabled={@queue_stats.paused}>Pause</button>
+                <button class="btn btn-secondary btn-sm" phx-click="resume_queue" disabled={!@queue_stats.paused}>Resume</button>
+                <button class="btn btn-secondary btn-sm" phx-click="clear_queue">Clear</button>
+                <button class="btn btn-secondary btn-sm" phx-click="drain_queue">Drain</button>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div class="actions-bar">
@@ -190,6 +277,13 @@ defmodule SCRWeb.DashboardLive do
   defp get_cache_stats, do: SCR.LLM.Cache.stats()
 
   defp get_metrics_stats, do: SCR.LLM.Metrics.stats()
+
+  defp get_queue_stats do
+    SCR.TaskQueue.stats()
+  rescue
+    _ ->
+      %{size: 0, max_size: 0, accepted: 0, rejected: 0, high: 0, normal: 0, low: 0, paused: false}
+  end
 
   defp get_recent_tasks do
     # Check if ETS table exists before accessing (MemoryAgent may not be started yet)

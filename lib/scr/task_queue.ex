@@ -53,6 +53,22 @@ defmodule SCR.TaskQueue do
     GenServer.call(server, :clear)
   end
 
+  def pause(server \\ __MODULE__) do
+    GenServer.call(server, :pause)
+  end
+
+  def resume(server \\ __MODULE__) do
+    GenServer.call(server, :resume)
+  end
+
+  def paused?(server \\ __MODULE__) do
+    GenServer.call(server, :paused?)
+  end
+
+  def drain(server \\ __MODULE__) do
+    GenServer.call(server, :drain)
+  end
+
   def normalize_priority(value) when is_atom(value) do
     if value in [:high, :normal, :low], do: value, else: :normal
   end
@@ -97,7 +113,8 @@ defmodule SCR.TaskQueue do
        size: 0,
        max_size: max_size,
        accepted: 0,
-       rejected: 0
+       rejected: 0,
+       paused: false
      }}
   end
 
@@ -129,6 +146,7 @@ defmodule SCR.TaskQueue do
   end
 
   def handle_call(:size, _from, state), do: {:reply, state.size, state}
+  def handle_call(:paused?, _from, state), do: {:reply, state.paused, state}
 
   def handle_call(:stats, _from, state) do
     stats = %{
@@ -136,6 +154,7 @@ defmodule SCR.TaskQueue do
       max_size: state.max_size,
       accepted: state.accepted,
       rejected: state.rejected,
+      paused: state.paused,
       high: :queue.len(state.high),
       normal: :queue.len(state.normal),
       low: :queue.len(state.low)
@@ -154,6 +173,33 @@ defmodule SCR.TaskQueue do
     }
 
     {:reply, :ok, next_state}
+  end
+
+  def handle_call(:pause, _from, state) do
+    next_state = %{state | paused: true}
+    broadcast({:queue_paused, %{at: DateTime.utc_now()}})
+    {:reply, :ok, next_state}
+  end
+
+  def handle_call(:resume, _from, state) do
+    next_state = %{state | paused: false}
+    broadcast({:queue_resumed, %{at: DateTime.utc_now()}})
+    {:reply, :ok, next_state}
+  end
+
+  def handle_call(:drain, _from, state) do
+    tasks = drain_tasks(state)
+
+    next_state = %{
+      state
+      | high: :queue.new(),
+        normal: :queue.new(),
+        low: :queue.new(),
+        size: 0
+    }
+
+    broadcast({:queue_drained, %{count: length(tasks), at: DateTime.utc_now()}})
+    {:reply, {:ok, tasks}, next_state}
   end
 
   defp pop_next(state) do
@@ -185,6 +231,14 @@ defmodule SCR.TaskQueue do
 
   defp decrement_size(state) do
     %{state | size: max(state.size - 1, 0)}
+  end
+
+  defp drain_tasks(state) do
+    queue_to_list(state.high) ++ queue_to_list(state.normal) ++ queue_to_list(state.low)
+  end
+
+  defp queue_to_list(queue) do
+    :queue.to_list(queue)
   end
 
   defp broadcast(payload) do

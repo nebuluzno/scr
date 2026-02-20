@@ -27,4 +27,21 @@ defmodule SCR.TaskQueueTest do
     assert stats.size == 2
     assert stats.rejected == 1
   end
+
+  test "pause and resume toggle queue state", %{server: server} do
+    assert false == TaskQueue.paused?(server)
+    assert :ok = TaskQueue.pause(server)
+    assert true == TaskQueue.paused?(server)
+    assert :ok = TaskQueue.resume(server)
+    assert false == TaskQueue.paused?(server)
+  end
+
+  test "drain empties queue and returns tasks", %{server: server} do
+    assert {:ok, _} = TaskQueue.enqueue(%{task_id: "h"}, :high, server)
+    assert {:ok, _} = TaskQueue.enqueue(%{task_id: "n"}, :normal, server)
+
+    assert {:ok, tasks} = TaskQueue.drain(server)
+    assert Enum.map(tasks, & &1.task_id) == ["h", "n"]
+    assert 0 == TaskQueue.size(server)
+  end
 end

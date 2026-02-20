@@ -79,6 +79,11 @@ Open [http://localhost:4000](http://localhost:4000).
 - `/memory` Browse ETS memory state
 - `/metrics` LLM and cache metrics
 
+Dashboard now includes queue controls:
+- Pause/resume task dispatch
+- Clear queued tasks
+- Drain queue (marks drained tasks in shared context)
+
 ### Web UI task example
 1. Open `/tasks/new`
 2. Enter: `Research AI agent runtimes and produce a concise comparison`

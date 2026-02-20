@@ -335,7 +335,7 @@ defmodule SCR.Agents.PlannerAgent do
   end
 
   defp maybe_start_next_task(state, planner_agent_id) do
-    if planner_busy?(state) do
+    if planner_busy?(state) or TaskQueue.paused?(task_queue_server()) do
       state
     else
       case TaskQueue.dequeue(task_queue_server()) do

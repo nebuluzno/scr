@@ -38,11 +38,12 @@ Open [http://localhost:4000](http://localhost:4000)
 
 ### First Web UI walkthrough
 1. Dashboard: verify active runtime stats
-2. `New Task`: submit a task
-3. `Agents`: watch active agents
-4. `Memory`: inspect stored tasks/states
-5. `Metrics`: inspect LLM/cache activity
-6. `Tools`: run a manual tool call
+2. Queue Control card: test pause/resume and clear/drain actions
+3. `New Task`: submit a task
+4. `Agents`: watch active agents
+5. `Memory`: inspect stored tasks/states
+6. `Metrics`: inspect LLM/cache activity
+7. `Tools`: run a manual tool call
 
 ## 4. Optional: enable local LLM (Ollama)
 ```bash
