@@ -8,7 +8,7 @@ It provides:
 - Priority task queue with backpressure (`SCR.TaskQueue`)
 - Agent health monitoring + auto-heal hooks (`SCR.HealthCheck`)
 - Shared task context store for multi-agent coordination (`SCR.AgentContext`)
-- LLM execution (Ollama/OpenAI providers, mock provider for tests)
+- LLM execution (Ollama/OpenAI/Anthropic providers, mock provider for tests)
 - Streaming completions support (prompt and chat streams)
 - Unified tool execution (native tools + MCP integration path)
 - Tool composition helper for pipelines (`SCR.Tools.Chain`)
@@ -146,6 +146,18 @@ SCR.LLM.Client.chat_stream(
   [%{role: "user", content: "Summarize OTP in one paragraph"}],
   fn chunk -> IO.write(chunk) end
 )
+```
+
+### Anthropic
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+```
+
+In `config/config.exs`:
+```elixir
+config :scr, :llm,
+  provider: :anthropic
 ```
 
 ## Tool System (Hybrid)

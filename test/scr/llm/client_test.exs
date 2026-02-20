@@ -18,6 +18,11 @@ defmodule SCR.LLM.ClientTest do
     assert Client.provider() == :openai
   end
 
+  test "provider can be switched to anthropic through config" do
+    Application.put_env(:scr, :llm, provider: :anthropic)
+    assert Client.provider() == :anthropic
+  end
+
   test "chat_stream delegates to adapter when provider supports streaming" do
     Application.put_env(:scr, :llm, provider: :mock)
 

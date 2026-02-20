@@ -13,9 +13,13 @@ config :scr, :llm,
   provider: :ollama,
   base_url:
     System.get_env("LLM_BASE_URL") || System.get_env("OPENAI_BASE_URL") ||
+      System.get_env("ANTHROPIC_BASE_URL") ||
       "http://localhost:11434",
-  default_model: System.get_env("LLM_MODEL") || System.get_env("OPENAI_MODEL") || "llama2",
-  api_key: System.get_env("OPENAI_API_KEY"),
+  default_model:
+    System.get_env("LLM_MODEL") || System.get_env("OPENAI_MODEL") ||
+      System.get_env("ANTHROPIC_MODEL") || "llama2",
+  api_key: System.get_env("OPENAI_API_KEY") || System.get_env("ANTHROPIC_API_KEY"),
+  anthropic_api_version: System.get_env("ANTHROPIC_API_VERSION") || "2023-06-01",
   timeout: 60_000
 
 config :scr, :tools,

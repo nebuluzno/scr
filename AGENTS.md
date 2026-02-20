@@ -101,6 +101,8 @@ LLM_BASE_URL=http://localhost:11434  # Ollama server
 LLM_MODEL=llama2                      # Model name
 OPENAI_API_KEY=sk-...                 # OpenAI API key
 OPENAI_MODEL=gpt-4o-mini              # OpenAI model
+ANTHROPIC_API_KEY=sk-ant-...          # Anthropic API key
+ANTHROPIC_MODEL=claude-3-5-sonnet-latest
 SCR_MEMORY_PATH=tmp/memory            # DETS persistence path (optional)
 ```
 
@@ -270,7 +272,6 @@ Key dependencies from `mix.exs`:
 
 See `SCR_Improvements.md` for planned features:
 
-- Anthropic adapter support
 - Distributed agent support
 
 ## Related Documentation

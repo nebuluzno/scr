@@ -286,6 +286,42 @@ MIX_ENV=prod mix phx.server
 - Logs include structured metadata (`trace_id`, `task_id`, `agent_id`, etc.).
 - SCR telemetry events (tool/queue/health/MCP) are exported as OTel spans.
 
+## Tutorial 8: Anthropic Provider Check
+
+### Goal
+Run SCR with Anthropic as the active provider and verify chat + stream paths.
+
+### Steps
+1. Export Anthropic env:
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+```
+2. Set provider:
+```elixir
+# config/config.exs
+config :scr, :llm, provider: :anthropic
+```
+3. Run IEx:
+```bash
+iex -S mix
+```
+4. Verify provider + ping:
+```elixir
+SCR.LLM.Client.provider()
+SCR.LLM.Client.ping()
+```
+5. Run chat + stream:
+```elixir
+SCR.LLM.Client.chat([%{role: "user", content: "Explain OTP in 4 bullets"}])
+SCR.LLM.Client.chat_stream([%{role: "user", content: "Stream a short summary"}], fn chunk -> IO.write(chunk) end)
+```
+
+### Expected Results
+- Provider reports `:anthropic`.
+- Ping and chat calls succeed.
+- Stream callback receives incremental chunks.
+
 ## Next Tutorials (Planned)
 - Build a custom native tool and register it safely.
 - Add an MCP server profile and strict allowlist policy.

@@ -39,7 +39,7 @@ This document outlines potential improvements and optimizations for the Supervis
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[done]` OpenAI adapter support
-- `[planned]` Anthropic adapter support
+- `[done]` Anthropic adapter support
 - `[done]` Streaming LLM responses
 - `[done]` Persistent storage backend (DETS-backed MemoryAgent option)
 - `[planned]` Distributed agent support
@@ -628,7 +628,7 @@ end
 
 ## Recommended Next Steps
 
-1. **Implement Anthropic adapter support** - Keep provider parity with OpenAI/Ollama.
-2. **Expand tutorial labs** - Cover custom tool authoring and full multi-agent debugging flow.
-3. **Distributed agent support** - Enable cross-node runtime experiments.
-4. **Queue durability beyond memory** - Optional replayable queue backend for restart resilience.
+1. **Expand tutorial labs** - Cover custom tool authoring and full multi-agent debugging flow.
+2. **Distributed agent support** - Enable cross-node runtime experiments.
+3. **Queue durability beyond memory** - Optional replayable queue backend for restart resilience.
+4. **Provider failover policy** - Add runtime fallback/health-based provider switching across Ollama/OpenAI/Anthropic.

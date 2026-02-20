@@ -80,6 +80,24 @@ SCR.LLM.Client.ping()
 SCR.LLM.Client.chat([%{role: "user", content: "Say hello"}])
 ```
 
+## 4c. Optional: use Anthropic provider
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+```
+
+Set provider:
+```elixir
+# config/config.exs
+config :scr, :llm, provider: :anthropic
+```
+
+Quick check:
+```elixir
+SCR.LLM.Client.ping()
+SCR.LLM.Client.chat([%{role: "user", content: "Say hello"}])
+```
+
 ## 4b. Optional: MCP smoke test (real server)
 Set env vars (verified example with MCP filesystem server):
 ```bash

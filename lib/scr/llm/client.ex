@@ -44,7 +44,7 @@ defmodule SCR.LLM.Client do
       SCR.LLM.Cache.stats()
   """
 
-  alias SCR.LLM.{Ollama, OpenAI, Mock, Cache, Metrics}
+  alias SCR.LLM.{Ollama, OpenAI, Anthropic, Mock, Cache, Metrics}
   alias SCR.Tools.Registry
   alias SCR.Tools.ExecutionContext
 
@@ -235,6 +235,7 @@ defmodule SCR.LLM.Client do
     case provider() do
       :mock -> Mock
       :openai -> OpenAI
+      :anthropic -> Anthropic
       _ -> Ollama
     end
   end
