@@ -27,6 +27,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Queue visibility/control in dashboard (stats + pause/resume/clear/drain actions).
 - `[done]` Agent context lifecycle policy (retention + periodic cleanup + context stats).
 - `[done]` Execution-context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across planner/worker/tool path.
+- `[done]` Tool composition/chaining utility (`SCR.Tools.Chain`) with step-level error handling.
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -42,6 +43,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Agent context lifecycle policy: retention + cleanup job in `SCR.AgentContext`.
 - `[done]` Rate limiter maintenance: periodic cleanup of expired ETS buckets + limiter stats API.
 - `[done]` Execution-context propagation: `trace_id`, `parent_task_id`, and `subtask_id` are propagated across planner/worker/tool path.
+- `[planned]` Add telemetry events for queue actions, tool-chain step timing, and tool-rate-limit rejections.
 
 ## Tutorial Track (Next Docs Phase)
 - `[done]` Initial step-by-step tutorials in `TUTORIALS.md`:
@@ -101,7 +103,7 @@ mix phx.server
 
 ## 🚀 High Priority Improvements
 
-### 1. LiveView Real-Time Updates
+### 1. [done] LiveView Real-Time Updates
 **Current State:** Static pages require manual refresh
 **Improvement:** Implement Phoenix LiveView for real-time updates
 
@@ -235,7 +237,7 @@ end
 - Fair resource allocation
 - Protection against runaway agents
 
-### 6. Tool Composition/Chaining
+### 6. [done] Tool Composition/Chaining
 **Current State:** Tools execute independently
 **Improvement:** Allow tool chains
 

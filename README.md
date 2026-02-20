@@ -10,6 +10,7 @@ It provides:
 - Shared task context store for multi-agent coordination (`SCR.AgentContext`)
 - LLM execution (Ollama by default, mock provider for tests)
 - Unified tool execution (native tools + MCP integration path)
+- Tool composition helper for pipelines (`SCR.Tools.Chain`)
 - Tool rate limiting guardrail (`SCR.Tools.RateLimiter`)
 - Execution context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across tool calls
 - Phoenix Web UI for monitoring, tasks, memory, and metrics
@@ -123,6 +124,15 @@ iex -S mix
 ```elixir
 SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 2, "b" => 3})
 # => {:ok, %{data: 5, meta: %{source: :native, tool: "calculator", ...}}}
+
+SCR.Tools.Chain.execute(
+  [
+    %{tool: "calculator", params: %{"operation" => "add", "a" => 2, "b" => 3}},
+    %{tool: "calculator", params: %{"operation" => "multiply", "a" => "__input__", "b" => 10}}
+  ],
+  nil
+)
+# => {:ok, %{output: 50, steps: [...]}}
 ```
 
 ## Development Commands

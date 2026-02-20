@@ -119,6 +119,17 @@ ctx =
 SCR.Tools.Registry.execute_tool("calculator", %{"operation" => "add", "a" => 1, "b" => 1}, ctx)
 ```
 
+### Optional: test tool chaining utility
+```elixir
+SCR.Tools.Chain.execute(
+  [
+    %{tool: "calculator", params: %{"operation" => "add", "a" => 2, "b" => 3}},
+    %{tool: "calculator", params: %{"operation" => "multiply", "a" => "__input__", "b" => 4}}
+  ],
+  nil
+)
+```
+
 ### Optional: verify tool rate limiter
 ```elixir
 Application.put_env(:scr, :tool_rate_limit,
