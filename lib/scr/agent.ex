@@ -39,6 +39,13 @@ defmodule SCR.Agent do
   """
   @callback terminate(reason :: term(), state :: state()) :: :ok
 
+  @doc """
+  Optional deep health probe callback.
+  """
+  @callback handle_health_check(state :: state()) :: map()
+
+  @optional_callbacks handle_health_check: 1
+
   # Client API
 
   # For DynamicSupervisor - accepts a tuple as arg
@@ -65,6 +72,10 @@ defmodule SCR.Agent do
 
   def get_status(agent_id) do
     GenServer.call(via_tuple(agent_id), :get_status)
+  end
+
+  def health_check(agent_id) do
+    GenServer.call(via_tuple(agent_id), :health_check)
   end
 
   def crash(agent_id) do
@@ -144,6 +155,34 @@ defmodule SCR.Agent do
     }
 
     {:reply, status, state}
+  end
+
+  def handle_call(:health_check, _from, state) do
+    probe =
+      if function_exported?(state.module, :handle_health_check, 1) do
+        state.module.handle_health_check(state.agent_state)
+      else
+        %{
+          healthy: true,
+          status: state.status,
+          message_count: state.message_count,
+          agent_type: state.agent_type
+        }
+      end
+
+    payload =
+      Map.merge(
+        %{
+          agent_id: state.agent_id,
+          agent_type: state.agent_type,
+          status: state.status,
+          message_count: state.message_count,
+          last_heartbeat: state.last_heartbeat
+        },
+        probe || %{}
+      )
+
+    {:reply, payload, state}
   end
 
   def handle_info(:heartbeat, state) do

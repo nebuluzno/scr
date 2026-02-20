@@ -12,6 +12,7 @@ defmodule SCR.Tools.RegistryTest do
 
   setup do
     original = Application.get_env(:scr, :tool_rate_limit)
+    :ok = RateLimiter.clear()
 
     on_exit(fn ->
       Application.put_env(:scr, :tool_rate_limit, original)

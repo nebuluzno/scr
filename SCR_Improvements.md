@@ -22,6 +22,8 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Agent health checks + self-heal hook (`SCR.HealthCheck`).
 - `[done]` Tool rate limiting guardrail (`SCR.Tools.RateLimiter`) integrated in tool execution.
 - `[done]` Shared agent task context (`SCR.AgentContext`) with planner/worker updates.
+- `[done]` Deep agent health probes (`SCR.Agent.health_check/1` + optional per-agent probe callbacks).
+- `[done]` Rate limiter maintenance (`SCR.Tools.RateLimiter` periodic cleanup + limiter stats).
 
 ## Roadmap Parity (From AGENTS.md Future Roadmap)
 - `[planned]` OpenAI adapter support
@@ -32,10 +34,10 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[planned]` Enhanced tool sandboxing
 
 ## Additional Suggestions (Post-Implementation)
-- `[planned]` Deep health probes: add per-agent `:health_check` callbacks (queue depth, message lag, tool latency), not only process status checks.
+- `[done]` Deep health probes: per-agent health callbacks and probe-based validation in `SCR.HealthCheck`.
 - `[planned]` Queue visibility and controls in Web UI: show `SCR.TaskQueue.stats/0`, waiting counts by priority, and admin actions (`pause`, `drain`, `clear`).
 - `[planned]` Agent context lifecycle policy: TTL/retention + cleanup job for `SCR.AgentContext` to avoid unbounded ETS growth.
-- `[planned]` Rate limiter maintenance: periodic cleanup of expired ETS buckets + dashboard counters for `accepted/rejected` by tool.
+- `[done]` Rate limiter maintenance: periodic cleanup of expired ETS buckets + limiter stats API.
 - `[planned]` Execution-context propagation: include `trace_id`, `parent_task_id`, and `subtask_id` across planner/worker/tool path for better debugging.
 
 ## Current Baseline Commands

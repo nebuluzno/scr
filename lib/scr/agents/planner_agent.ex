@@ -191,6 +191,23 @@ defmodule SCR.Agents.PlannerAgent do
     {:noreply, state}
   end
 
+  def handle_health_check(state) do
+    queue_stats =
+      try do
+        SCR.TaskQueue.stats()
+      rescue
+        _ -> %{size: 0, high: 0, normal: 0, low: 0}
+      end
+
+    %{
+      healthy: true,
+      current_task_id: get_in(state, [:current_task, :task_id]),
+      pending_subtasks: length(Map.get(state, :subtasks, [])),
+      queue_size: Map.get(queue_stats, :size, 0),
+      queue_high: Map.get(queue_stats, :high, 0)
+    }
+  end
+
   def terminate(_reason, _state) do
     IO.puts("🧠 PlannerAgent terminating")
     :ok

@@ -14,17 +14,32 @@ defmodule SCR.HealthCheck do
   end
 
   def check_health(agent_id) when is_binary(agent_id) do
-    case SCR.Supervisor.get_agent_status(agent_id) do
-      {:ok, %{status: status}} when status in [:running, :idle, :processing] ->
-        :ok
+    stale_threshold_ms =
+      Application.get_env(:scr, :health_check, [])
+      |> Keyword.get(:stale_heartbeat_ms, 30_000)
 
-      {:ok, %{status: status}} ->
+    case SCR.Agent.health_check(agent_id) do
+      %{status: status, last_heartbeat: last_heartbeat} = probe
+      when status in [:running, :idle, :processing] ->
+        cond do
+          Map.get(probe, :healthy) == false ->
+            {:error, {:probe_unhealthy, probe}}
+
+          heartbeat_stale?(last_heartbeat, stale_threshold_ms) ->
+            {:error, :stale_heartbeat}
+
+          true ->
+            :ok
+        end
+
+      %{status: status} ->
         {:error, {:unhealthy_status, status}}
 
-      {:error, :not_found} ->
-        {:error, :not_found}
+      _ ->
+        {:error, :invalid_probe}
     end
   catch
+    :exit, {:noproc, _} -> {:error, :not_found}
     :exit, reason -> {:error, {:unreachable, reason}}
   end
 
@@ -117,4 +132,10 @@ defmodule SCR.HealthCheck do
       end
     )
   end
+
+  defp heartbeat_stale?(%DateTime{} = last_heartbeat, threshold_ms) do
+    DateTime.diff(DateTime.utc_now(), last_heartbeat, :millisecond) > threshold_ms
+  end
+
+  defp heartbeat_stale?(_, _), do: true
 end

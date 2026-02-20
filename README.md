@@ -133,12 +133,14 @@ config :scr, :task_queue, max_size: 100
 
 config :scr, :health_check,
   interval_ms: 15_000,
-  auto_heal: true
+  auto_heal: true,
+  stale_heartbeat_ms: 30_000
 
 config :scr, :tool_rate_limit,
   enabled: true,
   default_max_calls: 60,
   default_window_ms: 60_000,
+  cleanup_interval_ms: 60_000,
   per_tool: %{
     "calculator" => %{max_calls: 30, window_ms: 60_000}
   }
@@ -152,6 +154,8 @@ iex -S mix
 ```elixir
 SCR.TaskQueue.stats()
 SCR.HealthCheck.stats()
+SCR.Agent.health_check("planner_1")
+SCR.Tools.RateLimiter.stats()
 SCR.AgentContext.list() |> Enum.take(3)
 ```
 

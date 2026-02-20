@@ -92,6 +92,15 @@ defmodule SCR.Agents.WorkerAgent do
     {:noreply, state}
   end
 
+  def handle_health_check(state) do
+    %{
+      healthy: true,
+      current_task: Map.get(state, :current_task),
+      completed_count: length(Map.get(state, :completed_tasks, [])),
+      last_task_type: Map.get(state, :task_type)
+    }
+  end
+
   def terminate(_reason, _state) do
     IO.puts("👷 WorkerAgent terminating")
     :ok
