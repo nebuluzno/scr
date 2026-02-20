@@ -26,6 +26,8 @@ defmodule SCR do
       {Phoenix.PubSub, name: SCR.PubSub},
       # Telemetry poller + Prometheus reporter
       {SCR.Telemetry, []},
+      # Optional OpenTelemetry export bridge
+      {SCR.Observability.OTelBridge, []},
       # Start LLM Cache and Metrics
       {SCR.LLM.Cache, [enabled: true]},
       {SCR.LLM.Metrics, []},

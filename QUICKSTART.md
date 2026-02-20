@@ -187,6 +187,14 @@ Use the included templates:
 - Prometheus rules: `priv/monitoring/prometheus/alerts.yml`
 - Alertmanager config: `priv/monitoring/alertmanager/alertmanager.yml`
 
+### Optional: production JSON logs + OTel export bridge
+```bash
+export SCR_LOG_FORMAT=json
+export SCR_OTEL_ENABLED=true
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+export OTEL_SERVICE_NAME=scr-runtime
+```
+
 ### Optional: full observability stack (Docker Compose)
 ```bash
 docker compose -f docker-compose.observability.yml up -d

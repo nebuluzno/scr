@@ -271,7 +271,6 @@ Key dependencies from `mix.exs`:
 See `SCR_Improvements.md` for planned features:
 
 - Anthropic adapter support
-- Production JSON logging profile + OpenTelemetry log/trace export bridge
 - Distributed agent support
 
 ## Related Documentation

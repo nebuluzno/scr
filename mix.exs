@@ -46,7 +46,12 @@ defmodule SCR.MixProject do
       # Telemetry + Prometheus metrics
       {:telemetry_poller, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
-      {:telemetry_metrics_prometheus, "~> 1.1"}
+      {:telemetry_metrics_prometheus, "~> 1.1"},
+
+      # OpenTelemetry export bridge
+      {:opentelemetry_api, "~> 1.3"},
+      {:opentelemetry, "~> 1.3"},
+      {:opentelemetry_exporter, "~> 1.8"}
     ]
   end
 end

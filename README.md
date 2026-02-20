@@ -15,6 +15,8 @@ It provides:
 - Tool rate limiting guardrail (`SCR.Tools.RateLimiter`)
 - Execution context propagation (`trace_id`, `parent_task_id`, `subtask_id`) across tool calls
 - Structured runtime logging with trace metadata (`SCR.Trace` + logger metadata keys)
+- Production JSON logging profile (`SCR_LOG_FORMAT=json`)
+- Optional OpenTelemetry telemetry-to-span bridge (`SCR_OTEL_ENABLED=true`)
 - Phoenix Web UI for monitoring, tasks, memory, and metrics
 
 ## Quick Links
@@ -226,6 +228,17 @@ config :scr, SCR.Telemetry,
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:trace_id, :task_id, :parent_task_id, :subtask_id, :agent_id]
+
+config :scr, SCR.Observability.OTelBridge,
+  enabled: false
+```
+
+Production observability toggles:
+```bash
+export SCR_LOG_FORMAT=json
+export SCR_OTEL_ENABLED=true
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+export OTEL_SERVICE_NAME=scr-runtime
 ```
 
 Quick IEx checks:

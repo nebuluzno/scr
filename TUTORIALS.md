@@ -259,6 +259,33 @@ SCR.Tools.Registry.execute_tool("file_operations", %{"operation" => "write", "pa
 - MemoryAgent can restore task memory from DETS on restart.
 - Strict mode blocks disallowed file writes or blocked code patterns.
 
+## Tutorial 7: Production JSON Logs + OTel Bridge
+
+### Goal
+Enable production JSON logs and forward SCR telemetry events as OpenTelemetry spans to an OTLP collector.
+
+### Steps
+1. Set production observability env:
+```bash
+export SCR_LOG_FORMAT=json
+export SCR_OTEL_ENABLED=true
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+export OTEL_SERVICE_NAME=scr-runtime
+```
+2. Run in production mode:
+```bash
+MIX_ENV=prod mix phx.server
+```
+3. Trigger runtime events:
+- submit task(s) via `/tasks/new`
+- execute tool(s) via `/tools`
+4. Verify logs are JSON lines in stdout.
+5. Verify spans arrive at your OTLP collector backend.
+
+### Expected Results
+- Logs include structured metadata (`trace_id`, `task_id`, `agent_id`, etc.).
+- SCR telemetry events (tool/queue/health/MCP) are exported as OTel spans.
+
 ## Next Tutorials (Planned)
 - Build a custom native tool and register it safely.
 - Add an MCP server profile and strict allowlist policy.

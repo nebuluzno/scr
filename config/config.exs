@@ -70,6 +70,8 @@ config :scr, :memory_storage,
 
 config :scr, SCR.Telemetry, poller_interval_ms: 10_000
 
+config :scr, SCR.Observability.OTelBridge, enabled: false
+
 # Import environment-specific config
 if config_env() == :dev do
   import_config "dev.exs"

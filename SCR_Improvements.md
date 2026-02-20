@@ -52,7 +52,7 @@ This document outlines potential improvements and optimizations for the Supervis
 - `[done]` Rate limiter maintenance: periodic cleanup of expired ETS buckets + limiter stats API.
 - `[done]` Execution-context propagation: `trace_id`, `parent_task_id`, and `subtask_id` are propagated across planner/worker/tool path.
 - `[done]` Add telemetry events for queue actions and tool execution outcomes/duration, with Prometheus export.
-- `[planned]` Add production JSON log profile and OpenTelemetry log/trace export bridge.
+- `[done]` Add production JSON log profile and OpenTelemetry log/trace export bridge.
 - `[done]` Promote visual regression from artifact-only to baseline-diff blocking checks after snapshot stabilization.
 
 ## New BEAM/OTP-Focused Suggestions
@@ -629,7 +629,6 @@ end
 ## Recommended Next Steps
 
 1. **Implement Anthropic adapter support** - Keep provider parity with OpenAI/Ollama.
-2. **Add production JSON log profile + OTEL log/trace export bridge** - Better production observability.
-3. **Expand tutorial labs** - Cover custom tool authoring and full multi-agent debugging flow.
-4. **Distributed agent support** - Enable cross-node runtime experiments.
-5. **Queue durability beyond memory** - Optional replayable queue backend for restart resilience.
+2. **Expand tutorial labs** - Cover custom tool authoring and full multi-agent debugging flow.
+3. **Distributed agent support** - Enable cross-node runtime experiments.
+4. **Queue durability beyond memory** - Optional replayable queue backend for restart resilience.
