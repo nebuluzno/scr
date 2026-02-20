@@ -29,6 +29,7 @@ It provides:
 - Full setup + first run: `QUICKSTART.md`
 - Step-by-step tutorials: `TUTORIALS.md`
 - Documentation index: `DOCS_INDEX.md`
+- Skill compatibility profile: `SKILL.md`
 - Release prep checklist: `RELEASE_CHECKLIST.md`
 - Latest release notes: `docs/release/RELEASE_NOTES_v0.5.0-alpha.md`
 - Competitive comparison: `docs/positioning/SCR_Competitive_Comparison.md`

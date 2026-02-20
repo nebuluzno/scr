@@ -31,6 +31,7 @@ jobs:
             "QUICKSTART.md" \
             "TUTORIALS.md" \
             "DOCS_INDEX.md" \
+            "SKILL.md" \
             "SCR_Improvements.md" \
             "AGENTS.md" \
             "docs/guides/SCR_UseCases.md" \
@@ -47,7 +48,7 @@ jobs:
           fail: true
           args: >-
             --offline --no-progress
-            README.md QUICKSTART.md TUTORIALS.md DOCS_INDEX.md SCR_Improvements.md AGENTS.md docs/guides/SCR_UseCases.md docs/guides/SCR_Medium_Article.md docs/positioning/SCR_Competitive_Comparison.md docs/roadmap/FUTURE_TODO.md docs/release/RELEASE_NOTES_v0.4.0-alpha.md docs/release/RELEASE_NOTES_v0.5.0-alpha.md plans/phoenix_web_interface_plan.md
+            README.md QUICKSTART.md TUTORIALS.md DOCS_INDEX.md SKILL.md SCR_Improvements.md AGENTS.md docs/guides/SCR_UseCases.md docs/guides/SCR_Medium_Article.md docs/positioning/SCR_Competitive_Comparison.md docs/roadmap/FUTURE_TODO.md docs/release/RELEASE_NOTES_v0.4.0-alpha.md docs/release/RELEASE_NOTES_v0.5.0-alpha.md plans/phoenix_web_interface_plan.md
 
       - name: Version drift check
         run: |
@@ -55,9 +56,11 @@ jobs:
           VERSION=$(sed -n 's/.*version: "\(.*\)".*/\1/p' mix.exs | head -n1)
           test -n "$VERSION"
           grep -q "Current version: \*\*v$VERSION\*\*" AGENTS.md
+          grep -q "Current version: \*\*v$VERSION\*\*" SKILL.md
           grep -q "\`v$VERSION\`" README.md
           grep -q "v$VERSION" lib/scr_web/components/layouts/root.html.heex
           grep -q "\"version\" => \"$VERSION\"" lib/scr/tools/mcp/client.ex
+          grep -q "Canonical runtime and contributor guidance remains in \`AGENTS.md\`." SKILL.md
 
       - name: Setup BEAM for docs command smoke
         uses: erlef/setup-beam@v1

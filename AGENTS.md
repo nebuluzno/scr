@@ -3,6 +3,10 @@ Doc Owner: SCR Maintainers
 
 > This file provides context for AI agents working with this codebase.
 
+Compatibility note:
+- `SKILL.md` exists for compatibility with ecosystems that expect that filename.
+- `AGENTS.md` is canonical when guidance differs.
+
 ## Project Overview
 
 **SCR (Supervised Cognitive Runtime)** is a fault-tolerant, multi-agent AI system built on the BEAM/OTP platform using Elixir. It provides a foundation for research-level work in scalable, long-lived AI agent systems with LLM integration.

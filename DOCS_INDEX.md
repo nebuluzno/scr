@@ -19,13 +19,16 @@ Use this file as the canonical entry point for project documentation.
 1. `AGENTS.md`
 - Agent/runtime architecture reference for contributors and coding agents.
 
-2. `docs/architecture/SCR_LLM_Documentation.txt`
+2. `SKILL.md`
+- Compatibility profile for ecosystems expecting `SKILL.md` (canonical source remains `AGENTS.md`).
+
+3. `docs/architecture/SCR_LLM_Documentation.txt`
 - LLM integration details.
 
-3. `docs/guides/SCR_UseCases.md`
+4. `docs/guides/SCR_UseCases.md`
 - Example scenarios and usage flows.
 
-4. `docs/guides/DISTRIBUTED_RESILIENCE_RUNBOOK.md`
+5. `docs/guides/DISTRIBUTED_RESILIENCE_RUNBOOK.md`
 - Deterministic distributed resilience validation workflow and troubleshooting.
 
 ## Planning and Roadmap
@@ -63,7 +66,10 @@ Use this file as the canonical entry point for project documentation.
 4. Release alignment
 - Version strings, release notes, and checklist targets must be updated together.
 
-5. Future work isolation
+5. Skill compatibility
+- Keep `SKILL.md` aligned with `AGENTS.md`; treat `AGENTS.md` as canonical.
+
+6. Future work isolation
 - Keep upcoming ideas only in `docs/roadmap/FUTURE_TODO.md`; keep `SCR_Improvements.md` focused on delivered history.
 
 ## Docs Changelog
@@ -72,3 +78,4 @@ Use this file as the canonical entry point for project documentation.
 - 2026-02-20: Moved long-form guides/architecture/roadmap/positioning/release docs under `docs/`.
 - 2026-02-20: Added docs CI version-drift check (`mix.exs` vs README/AGENTS/UI footer/MCP client).
 - 2026-02-20: Updated index paths to workspace-relative paths and bumped latest release notes to `v0.5.0-alpha`.
+- 2026-02-20: Added `SKILL.md` compatibility profile and sync rule (`AGENTS.md` remains canonical).
