@@ -9,8 +9,8 @@ const pages = [
 
 for (const pageConfig of pages) {
   test(`visual snapshot ${pageConfig.path}`, async ({page}) => {
-    await page.goto(pageConfig.path, {waitUntil: "networkidle"});
-    await page.waitForTimeout(1000);
+    await page.goto(pageConfig.path, {waitUntil: "domcontentloaded"});
+    await page.waitForTimeout(1200);
 
     await expect(page).toHaveScreenshot(pageConfig.snapshot, {
       fullPage: true,
