@@ -57,8 +57,8 @@ jobs:
       - name: Setup BEAM
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: "1.14.5"
-          otp-version: "25.3"
+          elixir-version: "1.19.5"
+          otp-version: "28.0"
 
       - name: Restore deps and build cache
         uses: actions/cache@v4
@@ -97,8 +97,8 @@ jobs:
       - name: Setup BEAM
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: "1.14.5"
-          otp-version: "25.3"
+          elixir-version: "1.19.5"
+          otp-version: "28.0"
 
       - name: Restore deps and build cache
         uses: actions/cache@v4
@@ -139,8 +139,8 @@ jobs:
       - name: Setup BEAM
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: "1.14.5"
-          otp-version: "25.3"
+          elixir-version: "1.19.5"
+          otp-version: "28.0"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -211,8 +211,8 @@ jobs:
         if: ${{ steps.mcp_guard.outputs.enabled == 'true' }}
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: "1.14.5"
-          otp-version: "25.3"
+          elixir-version: "1.19.5"
+          otp-version: "28.0"
 
       - name: Setup Node.js (for JS MCP servers)
         if: ${{ steps.mcp_guard.outputs.enabled == 'true' }}
